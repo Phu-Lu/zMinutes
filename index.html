@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#10172a" />
+  <meta name="description" content="A private, local-first meeting notebook." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    :root { --ink:#1b1b1f; --muted:#5f636d; --paper:#f3f7fc; --card:#fff; --line:#d9e2ef; --brand:#0078d4; --lime:#d7efff; --danger:#d13438; }
+    body { background:linear-gradient(130deg,#edf6ff 0,#f8fbff 42%,#f3f7fc 100%); }
+    .shell { max-width:1280px; }
+    .topbar { background:rgba(255,255,255,.76); border:1px solid #e3ebf5; border-top:0; padding:0 22px; border-radius:0 0 16px 16px; backdrop-filter:blur(16px); }
+    .brand-mark { background:linear-gradient(135deg,#0078d4,#00a4ef); box-shadow:0 4px 12px #0078d433; }
+    .hero { margin-top:26px; min-height:300px; padding:58px 7%; border:1px solid #d9e8f7; border-radius:20px; background:linear-gradient(112deg,#fff 0%,#edf7ff 100%); box-shadow:0 16px 45px #496d9420; }
+    .hero h1 em { color:#0078d4; }.primary { background:#0078d4; box-shadow:0 5px 14px #0078d430; }.primary:hover{background:#005fa9}
+    .meeting-card,.record-strip,.note-input,.summary-output,.photo-card { box-shadow:0 3px 12px #42668b10; border-color:#dbe5f0; }
+    .meeting-card:hover { border-color:#9acbf0; box-shadow:0 10px 26px #42668b20; }.meeting-date,.badge { background:#e5f3ff; color:#0067b8; }
+    .tabs { margin-top:8px; }.tab.active { color:#0067b8; border-color:#0078d4; }.section-head { margin-top:36px; }
+    .panel { background:rgba(255,255,255,.63); border:1px solid #e1ebf4; border-radius:16px; margin-top:20px; padding:24px; max-width:none; box-shadow:0 6px 22px #42668b0d; }
+    .note-input { min-height:340px; }.transcript-card { background:linear-gradient(115deg,#103b61,#0b5d96); }.quick:hover,.secondary:hover { background:#e5f3ff;color:#0067b8; }
+    @media (min-width:800px) { .meeting-header { padding:32px 10px 18px; }.title-input { font-size:34px; }.panel-intro { display:flex; align-items:center; justify-content:space-between; }.panel-intro:not(.split)::after { content:'PRIVATE ON THIS DEVICE'; font:10px ui-monospace,monospace; color:#0078d4; letter-spacing:1px; }.meeting-list { grid-template-columns:repeat(3,1fr); } }
+    .agenda-tools{display:flex;align-items:center;gap:11px;margin:-4px 0 16px}.upload-list{border:1px solid #b8d7ef;background:#f3f9fe;color:#0067b8;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer}.upload-list input{display:none}.agenda-tools small{color:var(--muted)}.agenda-item{align-items:flex-start;flex-wrap:wrap}.agenda-item>input{margin-top:3px}.agenda-item label{padding-top:1px}.agenda-note{margin:2px 27px 0 27px;flex-basis:calc(100% - 54px);border:1px solid #dbe5f0;border-radius:7px;padding:8px 9px;background:#f8fbfe;color:var(--ink);font:12px/1.45 system-ui;resize:vertical;min-height:36px}.agenda-note:focus{background:#fff;outline:2px solid #9dcef0;border-color:transparent}
+    .ai-settings{margin:-4px 0 16px;border:1px solid #dbe5f0;border-radius:10px;background:#f8fbfe;padding:0 13px}.ai-settings summary{cursor:pointer;padding:11px 0;font-weight:700;color:#24516e}.ai-settings summary span{float:right;color:#0078d4;font-weight:500;font-size:12px}.ai-settings p{font-size:12px;color:var(--muted);line-height:1.5}.ai-setting-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ai-setting-grid label{display:grid;gap:5px;font-size:11px;font-weight:700;color:#5f636d}.ai-setting-grid input{border:1px solid #cadceb;border-radius:7px;padding:8px;font:13px system-ui;background:#fff;color:var(--ink)}
+    @media (min-width:600px) and (max-width:799px){.shell{padding:0 24px 45px}.hero{padding:46px 7%;margin-top:18px}.hero h1{font-size:46px}.meeting-list{grid-template-columns:repeat(2,1fr)}.panel{padding:20px}.note-input{min-height:300px}.tab{padding-left:13px;padding-right:13px}}
+    @media (max-width:599px){.topbar{padding:0 8px;border-radius:0}.top-actions .ghost{display:none}.panel{border-radius:12px;padding:16px;margin-top:13px}.agenda-tools{align-items:flex-start;flex-direction:column;gap:6px}.agenda-note{flex-basis:calc(100% - 28px);margin-left:27px}.ai-setting-grid{grid-template-columns:1fr}.export-row>*{flex:1 1 calc(50% - 6px)} }
+    @media print{body{background:#fff}.topbar,.tabs,.record-strip,.quick-actions,.export-row,.panel-intro .primary,.photo-drop,.status{display:none!important}.shell{max-width:none;padding:0}.panel{display:block!important;box-shadow:none;border:0;padding:0;margin:18px 0}.hidden{display:block!important}.meeting-header{padding:0}.note-input{border:0;min-height:0;height:auto}.transcript-card{background:#fff;color:#000;border:1px solid #ddd}.transcript-card p{color:#333}.hero,#homeView{display:none!important}}
+  </style>
+  <title>Meeting Notes</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <button id="backBtn" class="icon ghost hidden" aria-label="Back">←</button>
+      <div class="brand"><span class="brand-mark">M</span><span>Meeting Notes</span></div>
+      <div class="top-actions"><button id="installBtn" class="ghost hidden">Install app</button><button id="importMeetingBtn" class="ghost">Import</button><input id="importMeetingInput" type="file" accept=".meeting.json,application/json" hidden><button id="newMeetingBtn" class="primary">+ New meeting</button></div>
+    </header>
+
+    <section id="homeView" class="view">
+      <div class="hero"><div><p class="eyebrow">LOCAL-FIRST · PC & ANDROID</p><h1>Your meetings.<br><em>Clearly captured.</em></h1><p class="muted">Agenda, notes, field photos, and meeting recaps — stored privately on your device.</p></div><button id="heroNewBtn" class="primary large">Start a meeting <span>→</span></button></div>
+      <div class="section-head"><div><h2>Your meetings</h2><p id="meetingCount" class="muted">No meetings yet</p></div><input id="searchInput" type="search" placeholder="Search meetings…" /></div>
+      <div id="meetingList" class="meeting-list"></div>
+    </section>
+
+    <section id="editorView" class="view hidden">
+      <div class="meeting-header"><div><input id="titleInput" class="title-input" placeholder="Untitled meeting" /><div class="meta-row"><input id="dateInput" type="datetime-local" /><input id="locationInput" placeholder="Location / Online" /></div></div><div class="status"><span id="saveState">Saved</span><button id="moreBtn" class="ghost">•••</button></div></div>
+      <nav class="tabs" aria-label="Meeting content"><button class="tab active" data-tab="note">Notes</button><button class="tab" data-tab="agenda">Agenda <span id="agendaBadge" class="badge">0</span></button><button class="tab" data-tab="field">Field notes <span id="photoBadge" class="badge">0</span></button><button class="tab" data-tab="summary">Recap</button></nav>
+      <div id="notePanel" class="panel">
+        <div class="record-strip"><div><span id="recordDot" class="record-dot"></span><strong id="recordLabel">Not recording</strong><span id="recordTimer">00:00</span></div><button id="recordBtn" class="record-btn">● <span>Record</span></button></div>
+        <div class="quick-actions"><button class="quick" data-insert="decision">◇ Decision</button><button class="quick" data-insert="task">✓ Action item</button><button class="quick" data-insert="important">! Important</button></div>
+        <textarea id="noteInput" class="note-input" placeholder="Capture what matters in the meeting…&#10;&#10;Tip: open Agenda to prepare questions before you meet."></textarea>
+        <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Transcript</strong><small>Local AI transcription is ready for the next step</small></div><p id="transcriptText">Start recording to save meeting audio on this device.</p></div>
+      </div>
+      <div id="agendaPanel" class="panel hidden"><div class="panel-intro"><h2>Questions & agenda</h2><p>Prepare ahead of time, or add a question while you meet.</p></div><form id="agendaForm" class="add-row"><input id="agendaInput" placeholder="Example: Can we agree on the design deadline?" autocomplete="off"/><button class="primary" type="submit">Add</button></form><div class="agenda-tools"><label class="upload-list"><input id="agendaUpload" type="file" accept=".txt,.csv,text/plain,text/csv" />↑ Import question list</label><small>One question per line. Supports .txt and .csv.</small></div><div id="agendaList" class="check-list"></div></div>
+      <div id="fieldPanel" class="panel hidden"><div class="panel-intro"><h2>Field notes</h2><p>Take a photo or attach one, then annotate it on the spot.</p></div><label class="photo-drop"><input id="photoInput" type="file" accept="image/*" capture="environment" multiple /><span class="camera-icon">⌁</span><strong>Add field photos</strong><small>Use the camera or choose from your device</small></label><div id="photoList" class="photo-grid"></div></div>
+      <div id="summaryPanel" class="panel hidden"><div class="panel-intro split"><div><h2>Meeting recap</h2><p>Generate a recap with your preferred AI provider, or use a quick local draft.</p></div><button id="generateSummaryBtn" class="primary">✦ Generate recap</button></div><details class="ai-settings"><summary>AI settings <span id="aiStatus">Quick local draft</span></summary><div class="ai-setting-grid"><label>Provider<select id="aiProvider"><option value="gemini">Gemini API</option><option value="openai">OpenAI API (ChatGPT)</option><option value="ollama">Ollama (local)</option><option value="quick">Quick local draft</option></select></label><label>Model<input id="aiModel" value="gemini-2.5-flash" /></label><label id="apiKeyField">API key<input id="aiApiKey" type="password" autocomplete="off" placeholder="Paste API key" /></label><label id="ollamaUrlField" class="hidden">Ollama URL<input id="ollamaUrl" value="http://localhost:11434" /></label></div><p id="aiHelp">Use a Gemini API key. The key stays only in this browser on this device.</p></details><article id="summaryOutput" class="summary-output empty"><p>No recap yet. Generate one when the meeting ends.</p></article><div class="export-row"><button id="pdfBtn" class="primary">↓ Save as PDF</button><button id="docBtn" class="secondary">↓ Download Word</button><button id="packageBtn" class="secondary">↓ Meeting package</button><button id="shareBtn" class="secondary">↗ Share</button><button id="emailBtn" class="secondary">✉ Email</button></div></div>
+    </section>
+  </main>
+  <dialog id="newMeetingDialog"><form method="dialog" id="newMeetingForm"><button class="dialog-close" value="cancel">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
+  <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
+  <script src="app.js"></script>
+</body>
+</html>
