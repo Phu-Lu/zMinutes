@@ -82,6 +82,11 @@
         </div><p id="aiHelp" class="settings-help">Choose Gemini, OpenAI, local Ollama, or an offline draft.</p><p class="settings-help">API keys are stored in this browser on this device, not synced or included in meeting exports. Anyone with access to this browser profile may be able to access them.</p><div class="settings-actions"><button id="saveAiSettingsBtn" class="primary" type="button">Save AI settings</button><button id="clearAiKeysBtn" class="secondary" type="button">Clear saved keys</button><span id="aiSaveStatus" role="status">Changes are saved on this device.</span></div>
       </section>
       <section class="settings-card"><div class="settings-card-head"><div><h2>Cloud transcription</h2><p>Transcription is optional and requires a provider key.</p></div></div><label class="ai-consent settings-consent"><input id="cloudAudioEnabled" type="checkbox"> Allow cloud transcription for new recordings</label><p class="settings-help">Meeting audio stays on your device unless you enable this option for a meeting and start cloud transcription.</p></section>
+      <section class="settings-card drive-settings-card"><div class="settings-card-head"><div><h2>Google Drive sync</h2><p>Move projects, meetings, tasks, and field notes between PC and Android.</p></div><span id="driveStatus" class="settings-status" role="status" aria-live="polite">Not connected</span></div>
+        <label class="drive-client-field">Google OAuth Web Client ID<input id="driveClientId" type="text" inputmode="url" autocomplete="off" placeholder="123456789-…apps.googleusercontent.com"></label>
+        <p class="settings-help">Set this up once on each browser. In Google Cloud, enable the Drive API and add this authorized JavaScript origin: <code>https://phu-lu.github.io</code>. Use the same Google account and Client ID on PC and phone. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Open Google Cloud credentials</a>.</p>
+        <div class="drive-sync-actions"><button id="saveDriveClientBtn" class="secondary" type="button">Save Client ID</button><button id="syncSettingsBtn" class="primary" type="button">↻ Sync now</button><span>For security, connect each browser session manually. Raw audio and AI keys are not uploaded.</span></div>
+      </section>
     </section>
   </main>
   </div>
