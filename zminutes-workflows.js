@@ -3,18 +3,30 @@
   const $z=id=>document.getElementById(id), DAY=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
   let selectedDay=DAY();
   const safeRead=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}catch{return f}};
+  function normalizeMeeting(m){
+    if(!m||typeof m!=='object')return null;
+    m.id=String(m.id||uid());m.title=String(m.title||'');m.location=String(m.location||'');m.note=String(m.note||'');m.date=String(m.date||'');m.summary=String(m.summary||'');m.projectId=String(m.projectId||'inbox');
+    m.agenda=Array.isArray(m.agenda)?m.agenda.filter(x=>x&&typeof x==='object').map(x=>({...x,id:String(x.id||uid()),text:String(x.text||''),note:String(x.note||''),done:!!x.done})):[];
+    m.photos=Array.isArray(m.photos)?m.photos.filter(x=>x&&typeof x==='object').map(x=>({...x,id:String(x.id||uid()),data:String(x.data||''),note:String(x.note||'')})):[];
+    m.stakeholders=Array.isArray(m.stakeholders)?m.stakeholders.filter(x=>x&&typeof x==='object').map(x=>({...x,id:String(x.id||uid()),name:String(x.name||''),role:String(x.role||''),status:String(x.status||'invited')})):[];
+    m.transcript=typeof m.transcript==='string'?m.transcript:'';return m;
+  }
   function normalize(){
-    meetings=Array.isArray(meetings)?meetings.filter(m=>m&&typeof m==='object'):[];
-    meetings.forEach(m=>{m.title=String(m.title||'');m.location=String(m.location||'');m.note=String(m.note||'');m.projectId||='inbox';m.agenda=Array.isArray(m.agenda)?m.agenda:[];m.photos=Array.isArray(m.photos)?m.photos:[];m.stakeholders=Array.isArray(m.stakeholders)?m.stakeholders:[];m.transcript=typeof m.transcript==='string'?m.transcript:'';m.cloudAudioAllowed=!!m.cloudAudioAllowed});
+    meetings=Array.isArray(meetings)?meetings.map(normalizeMeeting).filter(Boolean):[];
     projectData=Array.isArray(projectData)?projectData.filter(p=>p&&typeof p==='object'&&typeof p.id==='string'&&p.id.trim()&&typeof p.name==='string'&&p.name.trim()):[];
     if(!projectData.length)projectData=[{id:'inbox',name:'Personal Workspace',color:'#0078d4',createdAt:Date.now()}];
     taskData=Array.isArray(taskData)?taskData:[];fieldData=Array.isArray(fieldData)?fieldData:[];
   }
   async function hydrate(){
     const legacy=[safeRead('meeting-note-data',[]),safeRead('zminutes-projects-v1',[]),safeRead('zminutes-tasks-v1',[]),safeRead('zminutes-field-notes-v1',[])];
+    const initialMeetings=new Map((Array.isArray(meetings)?meetings:[]).filter(m=>m?.id).map(m=>[m.id,JSON.stringify(m)]));
     try{
       const db=await Promise.all(['meetings','projects','tasks','fieldNotes'].map(k=>ZMinutesStore.get(k)));
-      meetings=Array.isArray(db[0])&& (db[0].length||!legacy[0]?.length)?db[0]:(Array.isArray(legacy[0])?legacy[0]:[]);
+      const storedMeetings=Array.isArray(db[0])&& (db[0].length||!legacy[0]?.length)?db[0]:(Array.isArray(legacy[0])?legacy[0]:[]);
+      const merged=new Map(storedMeetings.filter(m=>m&&m.id).map(m=>[m.id,m]));
+      // Preserve meetings created or edited while IndexedDB was opening.
+      (Array.isArray(meetings)?meetings:[]).filter(m=>m?.id&&initialMeetings.get(m.id)!==JSON.stringify(m)).forEach(m=>merged.set(m.id,m));
+      meetings=[...merged.values()];
       projectData=Array.isArray(db[1])&&db[1].length?db[1]:(Array.isArray(legacy[1])&&legacy[1].length?legacy[1]:projectData);
       taskData=Array.isArray(db[2])&&(db[2].length||!legacy[2]?.length)?db[2]:(Array.isArray(legacy[2])?legacy[2]:[]);
       fieldData=Array.isArray(db[3])&&(db[3].length||!legacy[3]?.length)?db[3]:(Array.isArray(legacy[3])?legacy[3]:[]);
@@ -64,8 +76,8 @@
 
   const templates={project:['Progress since last meeting','Current blockers','Decisions needed','Next actions'],site:['Site conditions','Safety and access','Issues observed','Required follow-up'],oneonone:['Check-in','Wins and challenges','Topics to discuss','Next steps']};
   const baseNew=newMeeting,baseOpen=openMeeting;
-  newMeeting=function(title='',date=nowLocal()){baseNew(title,date);if(current){current.stakeholders||=[];current.transcript||='';try{const cfg=JSON.parse(localStorage.getItem('zminutes-ai-settings-v1')||'{}');if(typeof current.cloudAudioAllowed!=='boolean')current.cloudAudioAllowed=!!cfg.cloudAudio}catch{}persist()}};
-  openMeeting=function(id){baseOpen(id);if(current){current.stakeholders||=[];current.transcript||='';try{const cfg=JSON.parse(localStorage.getItem('zminutes-ai-settings-v1')||'{}');if(typeof current.cloudAudioAllowed!=='boolean')current.cloudAudioAllowed=!!cfg.cloudAudio}catch{}renderEditor()}};
+  newMeeting=function(title='',date=nowLocal()){baseNew(title,date);if(current){normalizeMeeting(current);try{const cfg=JSON.parse(localStorage.getItem('zminutes-ai-settings-v1')||'{}');if(typeof current.cloudAudioAllowed!=='boolean')current.cloudAudioAllowed=!!cfg.cloudAudio}catch{}persist()}};
+  openMeeting=function(id){const meeting=meetings.find(m=>m?.id===id);if(meeting)normalizeMeeting(meeting);baseOpen(id);if(current){normalizeMeeting(current);try{const cfg=JSON.parse(localStorage.getItem('zminutes-ai-settings-v1')||'{}');if(typeof current.cloudAudioAllowed!=='boolean')current.cloudAudioAllowed=!!cfg.cloudAudio}catch{}renderEditor()}};
   renderEditor=function(){
     if(!current)return;$z('agendaBadge').textContent=current.agenda.length;$z('photoBadge').textContent=current.photos.length;
     if($z('stakeholderBadge'))$z('stakeholderBadge').textContent=current.stakeholders.length;
@@ -84,7 +96,7 @@
     if(f.matches('[data-task-edit]')){e.preventDefault();e.stopImmediatePropagation();const t=taskData.find(a=>a.id===f.dataset.taskEdit);if(t){t.title=f.elements.title.value.trim();t.due=f.elements.due.value;t.updated=Date.now();saveTasks();renderTasks()}return}
     if(f.id==='fieldForm'){e.preventDefault();e.stopImmediatePropagation();const photos=[...$z('fieldPreview').querySelectorAll('img')].map(x=>x.src);fieldData.push({id:uid(),projectId:navState.project,title:$z('fieldTitle').value.trim(),location:$z('fieldLocation').value.trim(),text:$z('fieldText').value.trim(),photos,updated:Date.now()});saveFields();renderFieldNotes();return}
     if(f.id==='stakeholderForm'){e.preventDefault();e.stopImmediatePropagation();current.stakeholders.push({id:uid(),name:$z('stakeholderName').value.trim(),role:$z('stakeholderRole').value.trim(),status:'invited'});f.reset();persist();renderEditor();return}
-    if(f.id==='newMeetingForm'){e.preventDefault();e.stopImmediatePropagation();const dialog=$z('newMeetingDialog'),title=$z('newTitle').value.trim(),date=$z('newDate').value||nowLocal(),qs=templates[$z('meetingTemplateSelect').value]||[];try{newMeeting(title,date);if(current&&qs.length){current.agenda.push(...qs.map(text=>({id:uid(),text,note:'',done:false})));persist();renderEditor()}f.reset()}catch(err){console.error('Could not create meeting:',err);alert('The meeting could not be created. Your entered title is still available; please try again.');return}finally{if(dialog.open)dialog.close()}}
+    if(f.id==='newMeetingForm'){e.preventDefault();e.stopImmediatePropagation();const dialog=$z('newMeetingDialog'),title=$z('newTitle').value.trim(),date=$z('newDate').value||nowLocal(),qs=templates[$z('meetingTemplateSelect').value]||[],before=new Set(meetings.map(m=>m?.id));try{newMeeting(title,date);if(current&&qs.length){current.agenda.push(...qs.map(text=>({id:uid(),text,note:'',done:false})));persist();renderEditor()}f.reset()}catch(err){console.error('Meeting creation flow recovered from an error:',err);const created=meetings.find(m=>m&&!before.has(m.id));if(created){normalizeMeeting(created);current=created;try{persist();openMeeting(created.id)}catch(renderError){console.error('Meeting opened with a rendering issue:',renderError)}f.reset()}else{alert(`Meeting could not be saved on this device. ${err?.message||'Check available browser storage and try again.'}`)}}finally{if(dialog.open)dialog.close()}}
   },true);
   document.addEventListener('change',e=>{
     const t=e.target;
