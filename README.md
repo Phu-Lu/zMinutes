@@ -6,7 +6,7 @@ zMinutes is a personal, local-first meeting notebook for desktop and Android. It
 
 Open the app URL in Microsoft Edge on Windows or Chrome on Android, then choose **Install app** in the browser. After the first successful load, the app shell is cached for offline use. Meetings and settings are stored in that browser on that device.
 
-The GitHub Pages site is publicly reachable. This exposes the app code and interface, not the meetings stored in the browser. API keys are kept in the current browser session; meeting content is sent to a cloud AI only when the user selects that provider and requests a recap or explicitly enables cloud transcription.
+The GitHub Pages site is publicly reachable. This exposes the app code and interface, not the meetings stored in the browser. API keys are saved in that browser's local storage on that device (not synced or exported); meeting content is sent to a cloud AI only when the user selects that provider and requests a recap or explicitly enables cloud transcription.
 
 ## Local development
 

@@ -1,16 +1,27 @@
 /* Multiple summary providers and opt-in post-recording cloud transcription. */
 (() => {
-  const $z=id=>document.getElementById(id), tick=String.fromCharCode(96);
-  const aiDetails=document.querySelector('.ai-settings'),aiDialog=document.createElement('dialog');
-  aiDialog.className='ai-settings-dialog';aiDialog.setAttribute('aria-labelledby','aiDialogTitle');
-  const aiTitle=document.createElement('h2');aiTitle.id='aiDialogTitle';aiTitle.textContent='AI provider & API keys';
-  const aiHint=document.createElement('p');aiHint.className='ai-dialog-hint';aiHint.textContent='Choose Gemini, OpenAI (ChatGPT API), Ollama, or an offline draft. API keys stay in this browser session and are not saved.';
-  const aiClose=document.createElement('button');aiClose.type='button';aiClose.className='dialog-close';aiClose.textContent='×';aiClose.setAttribute('aria-label','Close AI settings');aiClose.onclick=()=>aiDialog.close();
-  aiDialog.append(aiClose,aiTitle,aiHint);if(aiDetails){aiDetails.open=true;aiDialog.append(aiDetails)}document.body.append(aiDialog);
-  const openAiSettings=()=>{if(!aiDialog.open)aiDialog.showModal()};
-  $z('aiSettingsBtn')?.addEventListener('click',openAiSettings);
-  const aiIntro=document.querySelector('#summaryPanel .panel-intro>div');
-  if(aiIntro){const setup=document.createElement('button');setup.type='button';setup.className='secondary ai-open-settings';setup.textContent='⚙ AI setup & API keys';setup.onclick=openAiSettings;aiIntro.append(setup)}
+  const $z=id=>document.getElementById(id), tick=String.fromCharCode(96), CONFIG_KEY='zminutes-ai-settings-v1';
+  let savedConfig={};
+  try{savedConfig=JSON.parse(localStorage.getItem(CONFIG_KEY)||'{}')||{}}catch{savedConfig={}}
+  let selectedProvider=savedConfig.provider||$z('aiProvider').value;
+  if(savedConfig.provider)$z('aiProvider').value=savedConfig.provider;
+  if(savedConfig.model)$z('aiModel').value=savedConfig.model;
+  $z('aiApiKey').value=savedConfig.keys?.[savedConfig.provider||$z('aiProvider').value]||savedConfig.key||'';
+  if(savedConfig.url)$z('ollamaUrl').value=savedConfig.url;
+  if(savedConfig.transcriptionProvider)$z('transcriptionProvider').value=savedConfig.transcriptionProvider;
+  if(savedConfig.transcriptionKey)$z('transcriptionApiKey').value=savedConfig.transcriptionKey;
+  if(typeof savedConfig.cloudAudio==='boolean')$z('cloudAudioEnabled').checked=savedConfig.cloudAudio;
+  function saveAiSettings(showStatus=true){
+    const provider=$z('aiProvider').value,keys={...(savedConfig.keys||{})};keys[provider]=$z('aiApiKey').value.trim();
+    const value={provider,model:$z('aiModel').value.trim(),keys,url:$z('ollamaUrl').value.trim(),transcriptionProvider:$z('transcriptionProvider').value,transcriptionKey:$z('transcriptionApiKey').value.trim(),cloudAudio:$z('cloudAudioEnabled').checked};
+    try{savedConfig=value;localStorage.setItem(CONFIG_KEY,JSON.stringify(value));localStorage.setItem('meeting-note-ai',JSON.stringify({provider:value.provider,model:value.model,url:value.url}));$z('aiSaveStatus').textContent=showStatus?'Saved on this device.':'Changes not saved yet.';return true}catch(e){$z('aiSaveStatus').textContent='Could not save settings in this browser.';console.warn('Could not save AI preferences',e);return false}
+  }
+  function refreshAiSettings(){const p=$z('aiProvider').value,local=p==='ollama',quick=p==='quick';$z('apiKeyField').classList.toggle('hidden',local||quick);$z('ollamaUrlField').classList.toggle('hidden',!local);$z('apiKeyLabel').textContent=p==='gemini'?'Gemini API key':p==='openai'?'OpenAI API key':'API key';$z('aiHelp').textContent=quick?'No API request is made. zMinutes creates a structured draft from your notes.':local?'Uses a model installed in Ollama on this computer.':p==='gemini'?'Get a Gemini API key from Google AI Studio. It is saved only in this browser on this device.':'Use an OpenAI API key. ChatGPT subscriptions and API billing are separate.';}
+  refreshAiSettings();
+  $z('aiProvider').addEventListener('change',()=>{const defaults={gemini:'gemini-2.5-flash',openai:'gpt-4.1-mini',ollama:'qwen2.5:3b',quick:''},provider=$z('aiProvider').value;savedConfig.keys={...(savedConfig.keys||{}),[selectedProvider]:$z('aiApiKey').value.trim()};selectedProvider=provider;$z('aiModel').value=defaults[provider];$z('aiModel').dataset.provider=provider;$z('aiApiKey').value=savedConfig.keys[provider]||'';refreshAiSettings();saveAiSettings(false)});
+  $z('saveAiSettingsBtn').addEventListener('click',()=>{if(saveAiSettings(true))$z('aiSaveStatus').textContent='AI settings saved on this device.'});
+  $z('clearAiKeysBtn').addEventListener('click',()=>{if(!confirm('Clear the saved AI and transcription API keys from this browser?'))return;$z('aiApiKey').value='';$z('transcriptionApiKey').value='';savedConfig.keys={};saveAiSettings(true);$z('aiSaveStatus').textContent='Saved API keys cleared from this device.'});
+  ['aiModel','aiApiKey','ollamaUrl','transcriptionProvider','transcriptionApiKey','cloudAudioEnabled'].forEach(id=>$z(id).addEventListener('input',()=>{$z('aiSaveStatus').textContent='Unsaved changes — select Save AI settings.'}));
   function quickDraft(){
     const lines=[current.transcript||'',current.note||'',...(current.agenda||[]).flatMap(a=>[a.text,a.note||''])].join('\n').split(/\n+/).map(x=>x.trim()).filter(Boolean);
     const list=a=>a.length?'<ul>'+a.map(x=>'<li>'+esc(x.replace(/^[✓◇!-]\s*/,''))+'</li>').join('')+'</ul>':'<p>None captured.</p>';
@@ -41,7 +52,7 @@
     const d=await r.json();if(!r.ok)throw new Error(d.error?.message||'OpenAI request failed');return d.output_text||d.output?.flatMap(x=>x.content||[]).map(x=>x.text||'').join('')||'';
   }
   generateSummary=async function(){
-    if(!current)return;saveCurrent();const b=$z('generateSummaryBtn'),s=$z('aiStatus');b.disabled=true;b.textContent='Generating…';s.textContent='Preparing recap…';
+    if(!current)return;saveAiSettings(false);saveCurrent();const b=$z('generateSummaryBtn'),s=$z('aiStatus');b.disabled=true;b.textContent='Generating…';s.textContent='Preparing recap…';
     try{current.summary=sanitize(await callText(promptText()));s.textContent=$z('aiProvider').value==='quick'?'Offline quick draft · not an LLM':'Recap generated'}
     catch(e){console.warn(e);current.summary=quickDraft();s.textContent='Provider unavailable · offline draft used';if(!current.note&&!current.transcript)alert(e.message+'\nAn offline draft was created from available content.')}
     finally{saveCurrent();renderSummary();b.disabled=false;b.textContent='✦ Generate recap'}
@@ -71,7 +82,7 @@
   }
   async function transcribe(blob){
     if(!current.cloudAudioAllowed)return;
-    const key=$z('transcriptionApiKey').value.trim(),p=$z('transcriptionProvider').value;
+    const p=$z('transcriptionProvider').value,key=$z('transcriptionApiKey').value.trim()||(p===$z('aiProvider').value?$z('aiApiKey').value.trim():'');
     if(!key){$z('transcriptStatus').textContent='Audio saved locally · enter a transcription key to transcribe';return}
     try{
       const parts=await toWavParts(blob),text=[];
@@ -86,6 +97,7 @@
   let recorder,stream,parts=[],timer;
   toggleRecord=async function(){
     if(recorder?.state==='recording'){recorder.stop();return}if(!current)return;
+    saveCurrent();
     if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){alert('Recording needs browser microphone support over localhost or HTTPS.');return}
     try{
       stream=await navigator.mediaDevices.getUserMedia({audio:true});parts=[];recorder=new MediaRecorder(stream);recorder.ondataavailable=e=>{if(e.data?.size)parts.push(e.data)};
@@ -99,10 +111,7 @@
     }catch(e){alert('Microphone access is unavailable. Allow microphone access, then try again.')}
   };
   $z('generateSummaryBtn').onclick=()=>generateSummary();$z('recordBtn').onclick=()=>toggleRecord();
-  $z('aiProvider').addEventListener('change',()=>{
-    const p=$z('aiProvider').value;$z('apiKeyField').classList.toggle('hidden',p==='ollama'||p==='quick');$z('ollamaUrlField').classList.toggle('hidden',p!=='ollama');
-    $z('aiHelp').textContent=p==='ollama'?'Uses a model installed in Ollama. Offline quick recap remains available if Ollama is unavailable.':p==='quick'?'Creates a structured offline draft; it is not an LLM.':'Cloud text recap runs only when requested.';
-  });
+  $z('cloudAudioEnabled').addEventListener('change',()=>saveAiSettings(false));
   document.addEventListener('input',e=>{
     if(e.target.id==='transcriptInput'&&current){current.transcript=e.target.value;saveCurrent()}
     if(e.target.id==='noteInput'&&current&&recorder?.state==='recording'){clearTimeout(window.zmLiveDraft);window.zmLiveDraft=setTimeout(()=>{current.summary=quickDraft();saveCurrent();renderSummary()},1400)}
