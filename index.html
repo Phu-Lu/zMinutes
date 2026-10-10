@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0078d4" />
   <meta name="description" content="A private, local-first meeting notebook." />
-  <link rel="manifest" href="manifest.webmanifest?v=18" />
+  <link rel="manifest" href="manifest.webmanifest?v=20" />
   <link rel="apple-touch-icon" href="zminutes-icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=18" />
+  <link rel="stylesheet" href="styles.css?v=20" />
+  <link rel="stylesheet" href="zminutes-v2.css?v=20" />
   <style>
     :root { --ink:#1b1b1f; --muted:#5f636d; --paper:#f3f7fc; --card:#fff; --line:#d9e2ef; --brand:#0078d4; --lime:#d7efff; --danger:#d13438; }
     body { background:linear-gradient(130deg,#edf6ff 0,#f8fbff 42%,#f3f7fc 100%); }
@@ -29,16 +30,31 @@
     @media (max-width:599px){.topbar{padding:0 8px;border-radius:0;gap:8px}.top-left{flex:1 1 auto;min-width:0;gap:8px}.top-brand{display:flex;flex:none;white-space:nowrap;font-size:16px;gap:7px}.top-brand .brand-mark{width:32px;height:32px}.top-actions{flex:0 0 auto;gap:5px}.top-actions .ghost{display:none}.top-actions #installBtn:not(.hidden){display:inline-flex;width:38px;min-width:38px;justify-content:center;padding:8px}.settings-label,.install-label{display:none}.ai-settings-trigger{width:40px;min-width:40px;padding:8px;justify-content:center;font-size:14px}.primary#newMeetingBtn{padding:10px 11px;white-space:nowrap;font-size:12px}.panel{border-radius:12px;padding:16px;margin-top:13px}.agenda-tools{align-items:flex-start;flex-direction:column;gap:6px}.agenda-note{flex-basis:calc(100% - 28px);margin-left:27px}.ai-setting-grid{grid-template-columns:1fr}.export-row>*{flex:1 1 calc(50% - 6px)} }
     @media (max-width:380px){.primary#newMeetingBtn{width:40px;min-width:40px;justify-content:center;padding:8px}.primary#newMeetingBtn span{display:none}}
     @media (max-width:599px){.top-actions #installBtn:not(.hidden){width:44px;min-width:44px;min-height:44px;font-size:21px;padding:6px}}
-    @media print{body{background:#fff}.topbar,.tabs,.record-strip,.quick-actions,.export-row,.panel-intro .primary,.photo-drop,.status{display:none!important}.shell{max-width:none;padding:0}.panel{display:block!important;box-shadow:none;border:0;padding:0;margin:18px 0}.hidden{display:block!important}.meeting-header{padding:0}.note-input{border:0;min-height:0;height:auto}.transcript-card{background:#fff;color:#000;border:1px solid #ddd}.transcript-card p{color:#333}.hero,#homeView{display:none!important}}
   </style>
   <title>zMinutes</title>
 </head>
 <body>
-  <div class="app">
+  <div id="bootScreen" role="status"><p id="bootStatus">Opening your workspace…</p><button id="bootRetry" hidden>Retry</button></div>
+  <script>
+    // This guard is independent of app modules so a missing script cannot leave a blank screen.
+    (() => {
+      const show = message => {
+        if (window.ZM?.ready) return;
+        document.getElementById('bootStatus').textContent = message;
+        const button = document.getElementById('bootRetry');
+        button.hidden = false;
+        button.onclick = () => location.reload();
+      };
+      window.addEventListener('error', event => show('Startup interrupted. Check your connection and retry. Your saved data has not been cleared.'), true);
+      setTimeout(() => show('Opening is taking longer than expected. Close other zMinutes tabs, then retry. Do not clear browser data.'), 15000);
+    })();
+  </script>
+  <div class="app" inert>
   <aside id="sidebar" class="sb" aria-label="Projects navigation">
     <div class="sb-panel">
       <div class="sb-head"><div class="brand"><span class="brand-mark">z</span><span class="brand-text">zMinutes</span></div><button id="sbClose" class="sb-close" aria-label="Close navigation">×</button></div>
       <p class="sb-title">Projects</p>
+      <button id="newProjectBtn" class="new-project">+ New project</button>
       <div id="projectList" class="proj-list"></div>
       <button id="settingsNavBtn" class="nav-item settings-nav" type="button" title="Settings"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 0 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3H3.7a1.8 1.8 0 0 1 0-3.6h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 0 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 0 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3.6h-.2a1.8 1.8 0 0 0-.9 3Z"/></svg><span class="nav-label">Settings</span></button>
     </div>
@@ -52,6 +68,8 @@
       <div class="top-actions"><span id="syncState" class="sync-state" role="status">Local data</span><button id="aiSettingsBtn" class="secondary ai-settings-trigger" type="button" title="Open app settings">⚙ <span class="settings-label">Settings</span></button><button id="syncBtn" class="ghost" title="Sync through Google Drive">↻ Sync</button><button id="backupBtn" class="ghost">Backup</button><button id="restoreBtn" class="ghost">Restore</button><input id="restoreInput" type="file" accept=".zminutes.json,application/json" hidden><button id="installBtn" class="ghost" type="button" title="Install app" aria-label="Install app">⇩ <span class="install-label">Install app</span></button><button id="importMeetingBtn" class="ghost">Import</button><input id="importMeetingInput" type="file" accept=".meeting.json,application/json" hidden><button id="newMeetingBtn" class="primary" title="Create a new meeting">+ <span>New meeting</span></button></div>
     </header>
     <div id="installNotice" class="install-notice hidden" role="status" aria-live="polite"></div>
+    <div id="appNotice" class="install-notice" role="status" hidden></div><button id="retrySaveBtn" class="link-btn" hidden>Retry pending saves</button>
+    <div id="recordingBanner" class="install-notice" hidden><span id="recordingBannerText"></span> <button id="globalStopBtn" class="secondary">Stop and save</button></div>
 
     <section id="overviewView" class="view"></section>
 
@@ -63,11 +81,12 @@
     </section>
 
     <section id="editorView" class="view hidden">
-      <div class="meeting-header"><div><input id="titleInput" class="title-input" placeholder="Untitled meeting" /><div class="meta-row"><input id="dateInput" type="datetime-local" /><input id="locationInput" placeholder="Location / Online" /></div></div><div class="status"><span id="saveState">Saved</span><button id="moreBtn" class="ghost">•••</button></div></div>
+      <div class="meeting-header"><div><input id="titleInput" class="title-input" placeholder="Untitled meeting" /><div class="meta-row"><input id="dateInput" type="datetime-local" /><input id="locationInput" placeholder="Location / Online" /><select id="projectPicker" class="project-picker" aria-label="Project"></select></div></div><div class="status"><span id="saveState">Saved</span><button id="moreBtn" class="ghost" aria-label="Delete current meeting">•••</button></div></div>
       <nav class="tabs" aria-label="Meeting content" role="tablist"><button type="button" class="tab active" role="tab" aria-selected="true" data-tab="note">Notes</button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="agenda">Agenda <span id="agendaBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="stakeholders">People <span id="stakeholderBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="field">Field notes <span id="photoBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="summary">Recap</button></nav>
       <div id="notePanel" class="panel">
         <div class="record-strip"><div><span id="recordDot" class="record-dot"></span><strong id="recordLabel">Not recording</strong><span id="recordTimer">00:00</span></div><button id="recordBtn" class="record-btn" aria-label="Record audio">● <span>Record</span></button></div><p id="recordStatus" class="record-status" role="status" aria-live="polite"></p><label class="audio-upload">↑ Import an audio recording from this device<input id="audioFileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm" hidden></label>
         <div class="quick-actions"><button class="quick" data-insert="decision">◇ Decision</button><button class="quick" data-insert="task">✓ Action item</button><button class="quick" data-insert="important">! Important</button></div>
+        <audio id="audioPlayback" controls hidden></audio><div class="settings-actions"><button id="downloadAudioBtn" class="secondary" disabled>Download audio</button><button id="transcribeAgainBtn" class="secondary" disabled>Transcribe saved audio</button><button id="cancelAiBtn" class="secondary" hidden>Cancel AI request</button></div>
         <textarea id="noteInput" class="note-input" placeholder="Capture what matters in the meeting…&#10;&#10;Tip: open Agenda to prepare questions before you meet."></textarea>
         <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Transcript</strong><small id="transcriptStatus">Recording is stored locally</small></div><textarea id="transcriptInput" class="transcript-input" placeholder="Transcript will appear here, or paste/edit it manually…"></textarea><p id="transcriptText" class="transcript-hint">Recording stays on this device. Enable cloud transcription in AI settings to transcribe audio.</p></div>
       </div>
@@ -76,6 +95,7 @@
       <div id="stakeholdersPanel" class="panel hidden"><div class="panel-intro"><h2>Stakeholders</h2><p>Track who joined this meeting and their role.</p></div><form id="stakeholderForm" class="add-row"><input id="stakeholderName" required placeholder="Name" autocomplete="off"><input id="stakeholderRole" placeholder="Role / organization" autocomplete="off"><button class="primary" type="submit">Add person</button></form><div id="stakeholderList" class="stakeholder-list"></div></div>
       <div id="summaryPanel" class="panel hidden"><div class="panel-intro split"><div><h2>Meeting recap</h2><p>Generate a recap with your configured AI provider, or use the offline draft.</p></div><button id="generateSummaryBtn" class="primary">✦ Generate recap</button></div><p class="settings-shortcut">AI provider and API keys are managed in <button type="button" id="manageAiBtn" class="text-button">Settings</button>.</p><label class="ai-consent meeting-ai-consent"><input id="meetingCloudAudioEnabled" type="checkbox"> Allow cloud transcription for this meeting's recordings</label><article id="summaryOutput" class="summary-output empty"><p>No recap yet. Generate one when the meeting ends.</p></article><div class="export-row"><button id="pdfBtn" class="primary">↓ Save as PDF</button><button id="docBtn" class="secondary">↓ Download Word</button><button id="packageBtn" class="secondary">↓ Meeting package</button><button id="shareBtn" class="secondary">↗ Share</button><button id="emailBtn" class="secondary">✉ Email</button></div></div>
     </section>
+    <p id="recapKind" class="settings-help"></p>
     <section id="placeholderView" class="view hidden"></section>
     <section id="settingsView" class="view hidden">
       <div class="settings-heading"><p class="eyebrow">APP PREFERENCES</p><h1>Settings</h1><p>Configure AI providers once for this browser and device.</p></div>
@@ -92,16 +112,24 @@
         <p class="settings-help">Set this up once on each browser. In Google Cloud, enable the Drive API and add this authorized JavaScript origin: <code>https://phu-lu.github.io</code>. Use the same Google account and Client ID on PC and phone. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Open Google Cloud credentials</a>.</p>
         <div class="drive-sync-actions"><button id="saveDriveClientBtn" class="secondary" type="button">Save Client ID</button><button id="syncSettingsBtn" class="primary" type="button">↻ Sync now</button><span>For security, connect each browser session manually. Raw audio and AI keys are not uploaded.</span></div>
       </section>
+      <section class="settings-card"><h2>Backup and files</h2><div class="settings-actions"><button id="backupSettingsBtn" class="secondary">Download backup</button><button id="restoreSettingsBtn" class="secondary">Restore backup</button><button id="importSettingsBtn" class="secondary">Import meeting package</button></div></section>
+      <section class="settings-card"><h2>Recover recordings</h2><p>Audio is checkpointed while recording. Recover saved segments after an interruption.</p><div id="recoveryList"></div></section>
+      <section class="settings-card"><h2>Sync conflicts</h2><p id="conflictCount"></p><div id="conflictList"></div></section>
+      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 20</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
     </section>
   </main>
   </div>
   <dialog id="newMeetingDialog"><form id="newMeetingForm"><button class="dialog-close" type="button" value="cancel" aria-label="Close">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><label>Meeting template<select id="meetingTemplateSelect"><option value="">Blank meeting</option><option value="project">Project update</option><option value="site">Site inspection</option><option value="oneonone">1:1 meeting</option></select></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
-  <script src="zminutes-storage.js"></script>
-  <script src="app.js?v=18"></script>
-  <script src="zminutes-workflows.js?v=15"></script>
-  <script src="zminutes-recorder.js?v=18"></script>
-  <script src="zminutes-ai.js?v=18"></script>
-  <script src="zminutes-drive.js"></script>
+  <script src="zminutes-model.js?v=20"></script>
+  <script src="zminutes-repository.js?v=20"></script>
+  <script src="zminutes-app.js?v=20"></script>
+  <script src="zminutes-views.js?v=20"></script>
+  <script src="zminutes-capture.js?v=20"></script>
+  <script src="zminutes-audio.js?v=20"></script>
+  <script src="zminutes-intelligence.js?v=20"></script>
+  <script src="zminutes-exports.js?v=20"></script>
+  <script src="zminutes-sync.js?v=20"></script>
+  <script src="zminutes-pwa.js?v=20"></script>
 </body>
 </html>

@@ -24,4 +24,26 @@ Then open <http://127.0.0.1:4174/>. Use a secure origin (HTTPS or localhost) for
 
 ## Data and sync
 
-The app stores meeting records in IndexedDB and uses localStorage as a fallback. Export a backup before clearing browser data or switching devices. Optional Google Drive sync shares selected app data; raw audio is excluded.
+Version 2 uses one IndexedDB repository for records, media, recording checkpoints, and a durable sync outbox. Existing records are migrated once; the original legacy stores are left intact. A failed save is shown explicitly instead of silently falling back to a second database. Export a backup before clearing browser data or switching devices.
+
+Drive sync uploads immutable changes. Concurrent edits are retained for resolution in Settings rather than silently overwriting each other. Deletions propagate as tombstones. Photos sync; audio, imported/exported packages, and API keys remain local. Local audio is preserved when receiving a remote meeting update. Backups include audio and attachments; restore validates and commits atomically. The original v1 Drive snapshot is not deleted.
+
+## Recording and AI
+
+Record starts the browser audio context directly from the button gesture. The audio processor is bundled locally; a compatibility recorder is used if AudioWorklet fails. Startup stages have deadlines and cancellation, and the timer advances only when samples arrive. PCM chunks are checkpointed every second; interrupted recordings can be recovered in Settings. Audio is saved as 16 kHz mono WAV with playback, download, import, and retranscription controls. Background recording is subject to OS/browser suspension; keep the app visible for reliable capture.
+
+Settings supports Gemini, OpenAI, Ollama, or a clearly labelled offline quick draft (not a local language model). Gemini transcription can reuse the Gemini recap key; OpenAI transcription needs an OpenAI key. Cloud transcription is opt-in per meeting. AI jobs stay attached to their original meeting even if you navigate elsewhere. Existing recaps are kept if an AI request fails.
+
+## Updates and development checks
+
+This release is **2.0 / build 20** (visible in Settings). Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
+
+```powershell
+npm ci
+npm test
+npm run test:browser
+```
+
+Browser tests use installed Edge on Windows and Playwright Chromium on Linux. On Linux, first run `npx playwright install --with-deps chromium`. Tests use synthetic audio and mocked cloud responses; they do not spend API credits or access a real Drive account. See [TESTING.md](TESTING.md) for coverage and physical-device checks. Deployment runs these tests before publishing.
+
+Active modules are `zminutes-model`, `repository`, `app`, `views`, `capture`, `audio`, `intelligence`, `exports`, `sync`, and `pwa`. Legacy scripts remain in the repository for reference but are not loaded by the new interface. Immutable history is retained for recoverability; history compaction is intentionally deferred.

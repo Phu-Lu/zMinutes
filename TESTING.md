@@ -1,0 +1,22 @@
+# Build 20 verification
+
+## Automated
+
+- `npm test`: migration, local audio preservation, durable outbox, concurrent changes, deletion conflicts, stale-tab heads, rejected malformed input, atomic restore rollback, and recording checkpoints. Legacy recorder tests remain as regression references.
+- `npm run test:browser`: meeting creation/dialog close; agenda/notes/people/photo tabs and persistence; tasks and field notes after reload; real WebAudio pipeline with a synthetic microphone; WAV save; forced worklet failure using the compatibility recorder; stalled resume and close releasing the UI; exact 44.1 kHz transcription duration; AI response after switching meetings; Vietnamese DOCX content; isolated PDF print; layouts at 360, 412, 800, 1024, and 1366 CSS pixels; offline reload; two isolated browser databases exchanging changes through the production Drive adapter with a mocked transport.
+
+Tests write screenshots/PDFs to ignored `test-results/`. Browser tests do not grant access to a physical microphone or call paid AI services. Passing responsive tests is not equivalent to testing Android hardware or proving every control's visual layout.
+
+## Physical acceptance still required
+
+On Windows Edge/Chrome, Pixel 6 Chrome, and Zebra ET40 Chrome:
+
+1. Confirm Settings shows build 20. Do not clear site storage to update.
+2. Create a meeting, click Record, speak for 15 seconds. Confirm the timer advances, Stop saves, playback is audible, and the downloaded WAV plays outside the app.
+3. Deny mic permission and retry after granting it. Cancel a pending request. Unplug a selected USB mic. Confirm no indefinite loading state.
+4. Record for at least 10 minutes. Switch meeting tabs and stop from the global banner. Test screen lock/background interruption; recover any interrupted audio from Settings.
+5. Install from Chrome's menu, wait for Android completion, find zMinutes in the app drawer, launch standalone, then reopen offline. Browser installation depends on OS/browser eligibility and is not under app control.
+6. Back up both devices before real Drive sync. Edit the same meeting offline on both, sync, resolve in Settings, and confirm both agree without losing local audio.
+7. With your own keys, test Gemini/OpenAI transcription and recap, invalid key, cancellation, and network interruption. No existing recap should disappear on failure.
+
+Do not claim these physical/cloud acceptance checks passed based solely on desktop automation.

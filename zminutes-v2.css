@@ -1,0 +1,230 @@
+[hidden] {
+  display: none !important;
+}
+#bootScreen {
+  position: fixed;
+  inset: 0;
+  background: #f3f7fc;
+  z-index: 1000;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 24px;
+}
+#appNotice.error {
+  background: #fff0ef;
+  color: #9c251c;
+}
+#retrySaveBtn {
+  font-size: 12px;
+  margin-top: 6px;
+}
+.app {
+  min-width: 0;
+}
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+.task-form {
+  grid-template-columns: minmax(0, 1fr) 145px minmax(120px, 1fr) auto;
+}
+.file-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #dce7f1;
+  padding: 14px 0;
+}
+.file-row small {
+  display: block;
+  color: #60758a;
+}
+.file-row strong,
+.field-text,
+.task-card strong {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.task-card > div {
+  min-width: 0;
+}
+#conflictList pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 260px;
+  overflow: auto;
+}
+.settings-actions {
+  flex-wrap: wrap;
+}
+#audioPlayback {
+  width: 100%;
+  margin: 12px 0;
+}
+#recordingBanner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.recording-controls {
+  display: flex;
+  gap: 10px;
+}
+.hero {
+  display: none;
+}
+.calendar-toolbar {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.photo-card img {
+  object-fit: contain;
+  max-height: 420px;
+}
+.field-card-photos {
+  flex-wrap: wrap;
+}
+.sb .ic {
+  display: inline-grid;
+  place-items: center;
+  font-size: 20px;
+  flex: none;
+}
+.top-brand {
+  overflow: visible !important;
+}
+.top-left {
+  overflow: visible !important;
+}
+.topbar {
+  height: auto;
+  min-height: 72px;
+}
+.print-document {
+  display: none;
+}
+@media (max-width: 1050px) {
+  .task-form {
+    grid-template-columns: minmax(0, 1fr) 145px;
+  }
+  .top-actions {
+    flex-wrap: wrap;
+  }
+  .crumbs {
+    max-width: 180px;
+  }
+}
+@media (max-width: 799px) {
+  .task-form,
+  .field-form {
+    grid-template-columns: 1fr;
+  }
+  .task-card {
+    grid-template-columns: 10px minmax(0, 1fr) 28px;
+  }
+  .task-card select {
+    grid-column: 2;
+  }
+  .field-form textarea {
+    grid-column: 1;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding: 10px !important;
+  }
+  .top-left {
+    flex: 1 1 130px !important;
+  }
+  .top-actions {
+    flex: 1 1 auto !important;
+    justify-content: flex-end;
+  }
+  .top-brand {
+    font-size: 16px !important;
+  }
+  .stakeholder-row {
+    grid-template-columns: minmax(0, 1fr) 30px;
+  }
+  .stakeholder-row select {
+    grid-column: 1;
+  }
+  .add-row {
+    flex-wrap: wrap;
+  }
+  .add-row input {
+    min-width: 0;
+    flex: 1 1 120px;
+  }
+  .calendar-toolbar h2 {
+    font-size: 16px;
+  }
+  .meta-row {
+    flex-wrap: wrap;
+  }
+  .meta-row input {
+    min-width: 0;
+  }
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .shell {
+    min-width: 0;
+  }
+  .tab {
+    min-height: 44px;
+  }
+  .tabs {
+    overflow: auto;
+    white-space: nowrap;
+  }
+  .settings-actions button {
+    min-height: 44px;
+  }
+  .top-brand span:last-child {
+    display: inline !important;
+  }
+  .title-input {
+    max-width: 100%;
+  }
+}
+@media print {
+  body > * {
+    display: none !important;
+  }
+  body > .print-document {
+    display: block !important;
+    font-family: Arial, sans-serif;
+    color: #000;
+    font-size: 11pt;
+    line-height: 1.45;
+  }
+  .print-document h1 {
+    font-size: 22pt;
+  }
+  .print-document h2 {
+    font-size: 15pt;
+    break-after: avoid;
+  }
+  .print-document p,
+  .print-document pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+  }
+  .print-document img {
+    max-width: 100%;
+    max-height: 220mm;
+    break-inside: avoid;
+  }
+  .print-document article {
+    margin-bottom: 14pt;
+  }
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+}

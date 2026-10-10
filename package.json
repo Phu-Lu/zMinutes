@@ -1,0 +1,14 @@
+{
+  "name": "zminutes",
+  "private": true,
+  "version": "2.0.0",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node tests/browser.test.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "fake-indexeddb": "6.2.4",
+    "prettier": "3.6.2"
+  }
+}
