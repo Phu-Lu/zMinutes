@@ -54,7 +54,7 @@ $('#newMeetingBtn').onclick=()=>$('#newMeetingDialog').showModal();$('#heroNewBt
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('#installBtn').classList.remove('hidden');});$('#installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('#installBtn').classList.add('hidden');}};if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js');renderHome();
 
 /* ===== Sidebar shell (project navigation) ===== */
-const PROJECTS=[{id:'inbox',name:'Inbox',color:'#0078d4'}]; // placeholder until the project data layer lands
+const PROJECTS=[{id:'inbox',name:'Personal Workspace',color:'#0078d4'}]; // placeholder until the project data layer lands
 const IC={chev:'<path d="M6 9l6 6 6-6"/>',overview:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',meetings:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',tasks:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/>',field:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/>'};
 const SECTIONS=[{id:'overview',label:'Overview',icon:'overview'},{id:'meetings',label:'Meetings',icon:'meetings'},{id:'tasks',label:'Tasks',icon:'tasks'},{id:'field',label:'Field notes',icon:'field'}];
 const navState={project:'inbox',section:'overview',expanded:true};
@@ -171,8 +171,9 @@ let projectData=[];
 function loadProjects(){
   try{projectData=JSON.parse(localStorage.getItem(PROJECT_STORE)||'[]')}catch{projectData=[]}
   projectData=Array.isArray(projectData)?projectData.filter(p=>p&&typeof p==='object'&&typeof p.id==='string'&&p.id.trim()&&typeof p.name==='string'&&p.name.trim()):[];
-  if(!projectData.length) projectData=[{id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()}];
-  if(!projectData.some(p=>p.id==='inbox')) projectData.unshift({id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()});
+  if(!projectData.length) projectData=[{id:'inbox',name:'Personal Workspace',color:'#0078d4',createdAt:Date.now()}];
+  if(!projectData.some(p=>p.id==='inbox')) projectData.unshift({id:'inbox',name:'Personal Workspace',color:'#0078d4',createdAt:Date.now()});
+  const inbox=projectData.find(p=>p.id==='inbox');if(inbox.name==='Inbox')inbox.name='Personal Workspace';
   let changed=false;meetings.forEach(m=>{if(!m.projectId||!projectData.some(p=>p.id===m.projectId)){m.projectId='inbox';changed=true}});
   try{localStorage.setItem(PROJECT_STORE,JSON.stringify(projectData))}catch(e){console.warn('Project browser-storage backup unavailable; continuing with in-memory and IndexedDB data.',e)}if(changed)try{localStorage.setItem('meeting-note-data',JSON.stringify(meetings))}catch(e){console.warn('Meeting browser-storage backup unavailable; continuing with in-memory data.',e)}
   PROJECTS.splice(0,PROJECTS.length,...projectData);

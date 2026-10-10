@@ -7,7 +7,7 @@
     meetings=Array.isArray(meetings)?meetings.filter(m=>m&&typeof m==='object'):[];
     meetings.forEach(m=>{m.title=String(m.title||'');m.location=String(m.location||'');m.note=String(m.note||'');m.projectId||='inbox';m.agenda=Array.isArray(m.agenda)?m.agenda:[];m.photos=Array.isArray(m.photos)?m.photos:[];m.stakeholders=Array.isArray(m.stakeholders)?m.stakeholders:[];m.transcript=typeof m.transcript==='string'?m.transcript:'';m.cloudAudioAllowed=!!m.cloudAudioAllowed});
     projectData=Array.isArray(projectData)?projectData.filter(p=>p&&typeof p==='object'&&typeof p.id==='string'&&p.id.trim()&&typeof p.name==='string'&&p.name.trim()):[];
-    if(!projectData.length)projectData=[{id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()}];
+    if(!projectData.length)projectData=[{id:'inbox',name:'Personal Workspace',color:'#0078d4',createdAt:Date.now()}];
     taskData=Array.isArray(taskData)?taskData:[];fieldData=Array.isArray(fieldData)?fieldData:[];
   }
   async function hydrate(){
@@ -20,7 +20,8 @@
       fieldData=Array.isArray(db[3])&&(db[3].length||!legacy[3]?.length)?db[3]:(Array.isArray(legacy[3])?legacy[3]:[]);
     }catch(e){console.warn('Using browser storage fallback:',e);meetings=Array.isArray(legacy[0])?legacy[0]:meetings;projectData=Array.isArray(legacy[1])&&legacy[1].length?legacy[1]:projectData;taskData=Array.isArray(legacy[2])?legacy[2]:taskData;fieldData=Array.isArray(legacy[3])?legacy[3]:fieldData}
     normalize();
-    if(!projectData.some(p=>p.id==='inbox'))projectData.unshift({id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()});
+    if(!projectData.some(p=>p.id==='inbox'))projectData.unshift({id:'inbox',name:'Personal Workspace',color:'#0078d4',createdAt:Date.now()});
+    const inbox=projectData.find(p=>p.id==='inbox');if(inbox.name==='Inbox')inbox.name='Personal Workspace';
     meetings.forEach(m=>{if(!projectData.some(p=>p.id===m.projectId))m.projectId='inbox'});
     PROJECTS.splice(0,PROJECTS.length,...projectData);if(!PROJECTS.some(p=>p.id===navState.project))navState.project='inbox';
     renderSidebar();renderSection(navState.section);renderOverview();if(current){current=meetings.find(m=>m.id===current.id)||null;if(current)renderEditor()}

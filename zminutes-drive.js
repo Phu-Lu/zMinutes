@@ -25,7 +25,8 @@
   async function restore(data){
     if(!data||data.app!=='zMinutes'||!Array.isArray(data.meetings)||!Array.isArray(data.projects))throw new Error('This is not a zMinutes backup.');
     meetings=data.meetings.filter(m=>m&&typeof m==='object');projectData=data.projects.filter(p=>p&&typeof p==='object'&&typeof p.id==='string'&&p.id.trim()&&typeof p.name==='string'&&p.name.trim());taskData=Array.isArray(data.tasks)?data.tasks.filter(t=>t&&typeof t==='object'):[];fieldData=Array.isArray(data.fieldNotes)?data.fieldNotes.filter(f=>f&&typeof f==='object'):[];
-    if(!projectData.some(p=>p.id==='inbox'))projectData.unshift({id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()});
+    if(!projectData.some(p=>p.id==='inbox'))projectData.unshift({id:'inbox',name:'Personal Workspace',color:'#0078d4',createdAt:Date.now()});
+    const inbox=projectData.find(p=>p.id==='inbox');if(inbox.name==='Inbox')inbox.name='Personal Workspace';
     meetings.forEach(m=>{m.title=String(m.title||'');m.location=String(m.location||'');m.note=String(m.note||'');m.agenda=Array.isArray(m.agenda)?m.agenda:[];m.photos=Array.isArray(m.photos)?m.photos:[];m.stakeholders=Array.isArray(m.stakeholders)?m.stakeholders:[];m.transcript=typeof m.transcript==='string'?m.transcript:''});
     await Promise.all([['meetings',meetings],['projects',projectData],['tasks',taskData],['fieldNotes',fieldData]].map(([k,v])=>ZMinutesStore.put(k,v,true)));
     try{localStorage.setItem('meeting-note-data',JSON.stringify(meetings.map(m=>({...m,audio:null}))));localStorage.setItem('zminutes-projects-v1',JSON.stringify(projectData));localStorage.setItem('zminutes-tasks-v1',JSON.stringify(taskData));localStorage.setItem('zminutes-field-notes-v1',JSON.stringify(fieldData.map(f=>({...f,photos:[]}))))}catch{}
