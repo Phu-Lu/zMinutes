@@ -1,4 +1,4 @@
-const CACHE = 'zminutes-v11';
+const CACHE = 'zminutes-v13';
 const FILES = ['./', './index.html', './styles.css', './app.js', './zminutes-storage.js', './zminutes-workflows.js', './zminutes-ai.js', './zminutes-drive.js', './manifest.webmanifest', './zminutes-icon.svg'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith('zminutes-') && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));

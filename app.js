@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s);
 let meetings = [];
-try { const storedMeetings = JSON.parse(localStorage.getItem('meeting-note-data') || '[]'); meetings = Array.isArray(storedMeetings) ? storedMeetings : []; } catch { meetings = []; }
+try { const storedMeetings = JSON.parse(localStorage.getItem('meeting-note-data') || '[]'); meetings = Array.isArray(storedMeetings) ? storedMeetings.filter(m=>m&&typeof m==='object').map(m=>({...m,title:String(m.title||''),location:String(m.location||''),note:String(m.note||''),agenda:Array.isArray(m.agenda)?m.agenda:[],photos:Array.isArray(m.photos)?m.photos:[],stakeholders:Array.isArray(m.stakeholders)?m.stakeholders:[]})) : []; } catch { meetings = []; }
 let current, activeTab = 'note', recorder, chunks = [], timer, elapsed = 0, deferredPrompt;
 const persist = () => {
   try { localStorage.setItem('meeting-note-data', JSON.stringify(meetings)); }
@@ -170,10 +170,11 @@ const PROJECT_STORE='zminutes-projects-v1';
 let projectData=[];
 function loadProjects(){
   try{projectData=JSON.parse(localStorage.getItem(PROJECT_STORE)||'[]')}catch{projectData=[]}
-  if(!Array.isArray(projectData)||!projectData.length) projectData=[{id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()}];
+  projectData=Array.isArray(projectData)?projectData.filter(p=>p&&typeof p==='object'&&typeof p.id==='string'&&p.id.trim()&&typeof p.name==='string'&&p.name.trim()):[];
+  if(!projectData.length) projectData=[{id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()}];
   if(!projectData.some(p=>p.id==='inbox')) projectData.unshift({id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()});
   let changed=false;meetings.forEach(m=>{if(!m.projectId||!projectData.some(p=>p.id===m.projectId)){m.projectId='inbox';changed=true}});
-  localStorage.setItem(PROJECT_STORE,JSON.stringify(projectData));if(changed)localStorage.setItem('meeting-note-data',JSON.stringify(meetings));
+  try{localStorage.setItem(PROJECT_STORE,JSON.stringify(projectData))}catch(e){console.warn('Project browser-storage backup unavailable; continuing with in-memory and IndexedDB data.',e)}if(changed)try{localStorage.setItem('meeting-note-data',JSON.stringify(meetings))}catch(e){console.warn('Meeting browser-storage backup unavailable; continuing with in-memory data.',e)}
   PROJECTS.splice(0,PROJECTS.length,...projectData);
   if(!PROJECTS.some(p=>p.id===navState.project))navState.project='inbox';
 }

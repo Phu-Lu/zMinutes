@@ -4,26 +4,28 @@
   let selectedDay=DAY();
   const safeRead=(k,f)=>{try{return JSON.parse(localStorage.getItem(k)||'null')??f}catch{return f}};
   function normalize(){
-    meetings=Array.isArray(meetings)?meetings:[];
-    meetings.forEach(m=>{m.projectId||='inbox';m.agenda||=[];m.photos||=[];m.stakeholders||=[];m.transcript||='';m.cloudAudioAllowed=!!m.cloudAudioAllowed});
-    projectData=Array.isArray(projectData)&&projectData.length?projectData:[{id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()}];
+    meetings=Array.isArray(meetings)?meetings.filter(m=>m&&typeof m==='object'):[];
+    meetings.forEach(m=>{m.title=String(m.title||'');m.location=String(m.location||'');m.note=String(m.note||'');m.projectId||='inbox';m.agenda=Array.isArray(m.agenda)?m.agenda:[];m.photos=Array.isArray(m.photos)?m.photos:[];m.stakeholders=Array.isArray(m.stakeholders)?m.stakeholders:[];m.transcript=typeof m.transcript==='string'?m.transcript:'';m.cloudAudioAllowed=!!m.cloudAudioAllowed});
+    projectData=Array.isArray(projectData)?projectData.filter(p=>p&&typeof p==='object'&&typeof p.id==='string'&&p.id.trim()&&typeof p.name==='string'&&p.name.trim()):[];
+    if(!projectData.length)projectData=[{id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()}];
     taskData=Array.isArray(taskData)?taskData:[];fieldData=Array.isArray(fieldData)?fieldData:[];
   }
   async function hydrate(){
+    const legacy=[safeRead('meeting-note-data',[]),safeRead('zminutes-projects-v1',[]),safeRead('zminutes-tasks-v1',[]),safeRead('zminutes-field-notes-v1',[])];
     try{
       const db=await Promise.all(['meetings','projects','tasks','fieldNotes'].map(k=>ZMinutesStore.get(k)));
-      const legacy=[safeRead('meeting-note-data',[]),safeRead('zminutes-projects-v1',[]),safeRead('zminutes-tasks-v1',[]),safeRead('zminutes-field-notes-v1',[])];
-      meetings=Array.isArray(db[0])?db[0]:(Array.isArray(legacy[0])?legacy[0]:[]);
+      meetings=Array.isArray(db[0])&& (db[0].length||!legacy[0]?.length)?db[0]:(Array.isArray(legacy[0])?legacy[0]:[]);
       projectData=Array.isArray(db[1])&&db[1].length?db[1]:(Array.isArray(legacy[1])&&legacy[1].length?legacy[1]:projectData);
-      taskData=Array.isArray(db[2])?db[2]:(Array.isArray(legacy[2])?legacy[2]:[]);
-      fieldData=Array.isArray(db[3])?db[3]:(Array.isArray(legacy[3])?legacy[3]:[]);normalize();
-      if(!projectData.some(p=>p.id==='inbox'))projectData.unshift({id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()});
-      meetings.forEach(m=>{if(!projectData.some(p=>p.id===m.projectId))m.projectId='inbox'});
-      await Promise.all([['meetings',meetings],['projects',projectData],['tasks',taskData],['fieldNotes',fieldData]].map(([k,v])=>ZMinutesStore.put(k,v,true)));
-      PROJECTS.splice(0,PROJECTS.length,...projectData);if(!PROJECTS.some(p=>p.id===navState.project))navState.project='inbox';
-      renderSidebar();renderSection(navState.section);renderOverview();if(current){current=meetings.find(m=>m.id===current.id)||null;if(current)renderEditor()}
-      if($z('syncState'))$z('syncState').textContent=navigator.onLine?'Local · ready':'Offline · saved locally';
-    }catch(e){console.warn('Using browser storage fallback:',e)}
+      taskData=Array.isArray(db[2])&&(db[2].length||!legacy[2]?.length)?db[2]:(Array.isArray(legacy[2])?legacy[2]:[]);
+      fieldData=Array.isArray(db[3])&&(db[3].length||!legacy[3]?.length)?db[3]:(Array.isArray(legacy[3])?legacy[3]:[]);
+    }catch(e){console.warn('Using browser storage fallback:',e);meetings=Array.isArray(legacy[0])?legacy[0]:meetings;projectData=Array.isArray(legacy[1])&&legacy[1].length?legacy[1]:projectData;taskData=Array.isArray(legacy[2])?legacy[2]:taskData;fieldData=Array.isArray(legacy[3])?legacy[3]:fieldData}
+    normalize();
+    if(!projectData.some(p=>p.id==='inbox'))projectData.unshift({id:'inbox',name:'Inbox',color:'#0078d4',createdAt:Date.now()});
+    meetings.forEach(m=>{if(!projectData.some(p=>p.id===m.projectId))m.projectId='inbox'});
+    PROJECTS.splice(0,PROJECTS.length,...projectData);if(!PROJECTS.some(p=>p.id===navState.project))navState.project='inbox';
+    renderSidebar();renderSection(navState.section);renderOverview();if(current){current=meetings.find(m=>m.id===current.id)||null;if(current)renderEditor()}
+    if($z('syncState'))$z('syncState').textContent=navigator.onLine?'Local · ready':'Offline · saved locally';
+    try{await Promise.all([['meetings',meetings],['projects',projectData],['tasks',taskData],['fieldNotes',fieldData]].map(([k,v])=>ZMinutesStore.put(k,v,true)))}catch(e){console.warn('Local database write failed; app remains usable with browser-storage fallback.',e)}
   }
   window.addEventListener('online',()=>{if($z('syncState'))$z('syncState').textContent='Online · local data saved'});
   window.addEventListener('offline',()=>{if($z('syncState'))$z('syncState').textContent='Offline · queued locally'});
