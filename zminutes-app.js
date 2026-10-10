@@ -14,6 +14,7 @@
     day: localDate(),
     month: null,
     pending: new Map(),
+    saving: 0,
     drafts: {},
     saveTail: Promise.resolve(),
   });
@@ -74,11 +75,16 @@
     if (index < 0) A.data[kind].push(value);
     else A.data[kind][index] = value;
     $("saveState").textContent = "Saving…";
+    A.saving++;
     const task = async () => {
       try {
         await S.put(kind, copy, A.heads[k] || []);
         A.heads[k] = (await S.get("entities", k)).heads;
-        $("saveState").textContent = A.pending.size ? "Unsaved changes" : "Saved";
+        $("saveState").textContent = A.pending.size
+          ? "Unsaved changes"
+          : A.saving > 1
+            ? "Saving…"
+            : "Saved";
         if (!A.pending.size) $("retrySaveBtn").hidden = true;
         return copy;
       } catch (e) {
@@ -86,6 +92,8 @@
         $("retrySaveBtn").hidden = false;
         if (!A.pending.has(k)) A.pending.set(k, { kind, value: copy });
         throw e;
+      } finally {
+        A.saving--;
       }
     };
     const result = A.saveTail.then(task, task);
@@ -653,7 +661,7 @@
       A.notice("Changes saved.");
     });
   window.addEventListener("beforeunload", (e) => {
-    if (A.pending.size || A.recording) {
+    if (A.pending.size || A.saving || A.recording) {
       e.preventDefault();
       e.returnValue = "";
     }

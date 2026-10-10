@@ -92,13 +92,11 @@ const server = http.createServer((req, res) => {
       c.getContext("2d").fillRect(0, 0, 64, 64);
       return c.toDataURL().split(",")[1];
     });
-    await page
-      .locator("#photoInput")
-      .setInputFiles({
-        name: "pixel.png",
-        mimeType: "image/png",
-        buffer: Buffer.from(png, "base64"),
-      });
+    await page.locator("#photoInput").setInputFiles({
+      name: "pixel.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
     await page.waitForFunction(() => ZM.current().photos.length === 1);
     await page.locator('.tabs [data-tab="summary"]').click();
     await page.locator("#generateSummaryBtn").click();
@@ -112,6 +110,7 @@ const server = http.createServer((req, res) => {
     await page.locator("#fieldText").fill("Observation");
     await page.locator("#fieldForm button").click();
     await page.waitForFunction(() => ZM.data.fieldNotes.length === 1);
+    await page.evaluate(() => ZM.flush());
     await page.reload();
     await page.waitForFunction(() => ZM?.ready);
     assert.equal(
