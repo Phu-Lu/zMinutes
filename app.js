@@ -53,11 +53,21 @@ refreshAiFields();$('#aiProvider').onchange=refreshAiFields;
 $('#newMeetingBtn').onclick=()=>$('#newMeetingDialog').showModal();$('#heroNewBtn').onclick=()=>$('#newMeetingDialog').showModal();$('#importMeetingBtn').onclick=()=>$('#importMeetingInput').click();$('#importMeetingInput').onchange=e=>{if(e.target.files[0])importPackage(e.target.files[0]);e.target.value='';};$('#newMeetingForm').onsubmit=e=>{e.preventDefault();newMeeting($('#newTitle').value,$('#newDate').value||nowLocal());$('#newMeetingDialog').close();$('#newMeetingForm').reset();};$('#backBtn').onclick=()=>{saveCurrent();current=null;$('#editorView').classList.add('hidden');$('#homeView').classList.remove('hidden');$('#backBtn').classList.add('hidden');$('#newMeetingBtn').classList.remove('hidden');renderHome();};$('#searchInput').oninput=e=>renderHome(e.target.value);['titleInput','dateInput','locationInput','noteInput'].forEach(id=>$('#'+id).oninput=()=>{ $('#saveState').textContent='Saving…';saveCurrent();});$('.tabs').addEventListener('click',e=>{const button=e.target.closest('[data-tab]');if(button){e.preventDefault();switchTab(button.dataset.tab);}});$('#agendaForm').onsubmit=e=>{e.preventDefault();const input=$('#agendaInput');if(input.value.trim()){current.agenda.push({id:uid(),text:input.value.trim(),note:'',done:false});input.value='';saveCurrent();renderEditor();}};$('#agendaUpload').onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{const lines=String(reader.result).split(/\r?\n|,/).map(x=>x.trim().replace(/^[-•\d.]+\s*/, '')).filter(Boolean);if(!lines.length){alert('No questions found in this file.');return;}current.agenda.push(...lines.map(text=>({id:uid(),text,note:'',done:false})));saveCurrent();renderEditor();alert(`${lines.length} question${lines.length===1?'':'s'} imported.`);};reader.readAsText(file);e.target.value='';};document.querySelectorAll('.quick').forEach(b=>b.onclick=()=>insertQuick(b.dataset.insert));$('#photoInput').onchange=e=>[...e.target.files].forEach(f=>{const r=new FileReader();r.onload=()=>{current.photos.push({id:uid(),data:r.result,note:''});saveCurrent();renderEditor();};r.readAsDataURL(f);});$('#recordBtn').onclick=toggleRecord;$('#generateSummaryBtn').onclick=generateSummary;$('#pdfBtn').onclick=()=>{saveCurrent();window.print();};$('#docBtn').onclick=exportDoc;$('#packageBtn').onclick=exportPackage;$('#shareBtn').onclick=share;$('#emailBtn').onclick=()=>{saveCurrent();location.href=`mailto:?subject=${encodeURIComponent(current.title)}&body=${encodeURIComponent(strip(current.summary)||current.note)}`;};
 const installButton=$('#installBtn');
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
-if(isStandalone())installButton.classList.add('hidden');
+let installConfirmed=false;
+function installFeedback(message){$('#installNotice').textContent=message;$('#installNotice').classList.remove('hidden');$('#installStatus').textContent=message}
+if(isStandalone()){installButton.classList.add('hidden');$('#installStatus').textContent='zMinutes is running as an installed app.'}
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;if(!isStandalone())installButton.classList.remove('hidden')});
-window.addEventListener('appinstalled',()=>{deferredPrompt=null;installButton.classList.add('hidden')});
+window.addEventListener('appinstalled',()=>{installConfirmed=true;deferredPrompt=null;installButton.classList.add('hidden');installFeedback('zMinutes installed. On Pixel, swipe up and search zMinutes in the app drawer; installation may take a moment to appear.')});
 installButton.onclick=async()=>{
-  if(deferredPrompt){const prompt=deferredPrompt;deferredPrompt=null;try{await prompt.prompt();await prompt.userChoice}catch(e){console.warn('Install prompt unavailable:',e)}return}
+  if(deferredPrompt){
+    const prompt=deferredPrompt;deferredPrompt=null;
+    try{
+      await prompt.prompt();const choice=await prompt.userChoice;
+      if(!installConfirmed)installFeedback(choice?.outcome==='accepted'?'Install accepted. On Pixel, swipe up and search zMinutes in the app drawer. It may take a moment to appear.':'Install was dismissed; no app was added. Tap Install again or use Chrome’s ⋮ menu → Add to Home screen.');
+    }catch(e){console.warn('Install prompt unavailable:',e);installFeedback('Chrome could not open the install prompt. Use Chrome’s ⋮ menu → Add to Home screen.')}
+    return;
+  }
+  $('#installStatus').textContent='Chrome did not offer an automatic install prompt in this session. Use Chrome’s ⋮ menu → Add to Home screen.';
   showSection('settings');$('#installHelp').scrollIntoView({behavior:'smooth',block:'start'});
 };
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});

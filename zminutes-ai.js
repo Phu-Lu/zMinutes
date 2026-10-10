@@ -94,7 +94,7 @@
       $z('transcriptStatus').textContent='Transcript complete · review before sharing';await generateSummary()
     }catch(e){console.error(e);$z('transcriptStatus').textContent='Transcription failed · audio remains local';alert('Transcription failed: '+e.message+'\nThe recording remains saved on this device.')}
   }
-  let recorder,stream,timer;
+  let recorder,stream,timer,pendingMicrophone;
   function recordMessage(error){
     switch(error?.name){
       case 'NotAllowedError':case 'PermissionDeniedError':case 'SecurityError':return 'Microphone access was blocked. Check the site permission and your phone’s microphone privacy setting.';
@@ -108,18 +108,32 @@
   function recordStatus(message,error=false){const s=$z('recordStatus');s.textContent=message;s.classList.toggle('error',error)}
   function resetRecordUi(label){
     clearInterval(timer);$z('recordDot').classList.remove('live');$z('recordLabel').textContent=label;
-    $z('recordBtn').classList.remove('live');$z('recordBtn span').textContent='Record';$z('recordBtn').disabled=false;
+    $z('recordBtn').classList.remove('live');$z('recordBtn').firstChild.textContent='● ';
+    $z('recordBtn span').textContent='Record';$z('recordBtn').setAttribute('aria-label','Record audio');$z('recordBtn').disabled=false;
+  }
+  async function microphonePermission(){
+    try{return (await navigator.permissions.query({name:'microphone'})).state}catch{return 'unknown'}
   }
   toggleRecord=async function(){
+    if(pendingMicrophone){pendingMicrophone.cancelled=true;pendingMicrophone.userCancelled=true;pendingMicrophone.cancel?.();$z('recordBtn').disabled=true;recordStatus('Canceling microphone request…');return}
     if(recorder?.state==='recording'){recorder.stop();$z('recordBtn').disabled=true;recordStatus('Saving audio on this device…');return}
     if(recorder||!current)return;
     if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia){recordStatus('Recording needs HTTPS or localhost and a browser with microphone support.',true);return}
     if(!window.MediaRecorder){recordStatus('This browser does not support audio recording. Try Chrome or Edge.',true);return}
-    const meeting=current,button=$z('recordBtn');let acquiredStream;
-    button.disabled=true;recordStatus('Connecting to microphone…');
+    const meeting=current,button=$z('recordBtn'),request={cancelled:false,userCancelled:false};let acquiredStream,requestTimer;
+    pendingMicrophone=request;button.firstChild.textContent='× ';button.querySelector('span').textContent='Cancel';button.setAttribute('aria-label','Cancel microphone request');
+    recordStatus('Connecting to microphone… Tap × to cancel if Chrome does not respond.');
     try{
       saveCurrent();
-      acquiredStream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const mediaRequest=navigator.mediaDevices.getUserMedia({audio:true}).then(opened=>{
+        if(request.cancelled){opened.getTracks().forEach(track=>track.stop());return null}
+        return opened;
+      });
+      const timeout=new Promise((_,reject)=>{requestTimer=setTimeout(()=>reject(Object.assign(new Error('Chrome did not finish opening the microphone.'),{name:'MicrophoneTimeoutError'})),15000)});
+      const cancel=new Promise((_,reject)=>{request.cancel=()=>reject(Object.assign(new Error('Canceled'),{name:'AbortError'}))});
+      acquiredStream=await Promise.race([mediaRequest,timeout,cancel]);
+      if(request.cancelled||!acquiredStream){resetRecordUi('Not recording');recordStatus('Microphone request canceled. Try again after Chrome releases the mic.');return}
+      recordStatus('Microphone connected. Starting recorder…');
       const mime=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(type=>MediaRecorder.isTypeSupported?.(type));
       const activeRecorder=new MediaRecorder(acquiredStream,mime?{mimeType:mime}:undefined),recordedParts=[];
       recorder=activeRecorder;stream=acquiredStream;
@@ -143,11 +157,32 @@
         finally{recorder=null;$z('recordBtn').disabled=false}
       };
       activeRecorder.start(30000);button.disabled=false;
-      $z('recordDot').classList.add('live');$z('recordLabel').textContent='Recording';button.classList.add('live');$z('recordBtn span').textContent='Stop';recordStatus('Microphone is recording. Tap Stop to save.');elapsed=0;
+      $z('recordDot').classList.add('live');$z('recordLabel').textContent='Recording';button.classList.add('live');button.firstChild.textContent='■ ';$z('recordBtn span').textContent='Stop';button.setAttribute('aria-label','Stop and save recording');recordStatus('Microphone is recording. Tap Stop to save.');elapsed=0;
       timer=setInterval(()=>{$z('recordTimer').textContent=formatTime(++elapsed);if(current?.id===meeting.id&&elapsed%60===0&&(meeting.note||meeting.transcript)){meeting.summary=quickDraft();saveCurrent();renderSummary()}},1000);
-    }catch(e){console.error('Microphone could not start:',e);acquiredStream?.getTracks().forEach(track=>track.stop());stream=null;recorder=null;resetRecordUi('Not recording');recordStatus(recordMessage(e),true)}
+    }catch(e){
+      console.error('Microphone could not start:',e);request.cancelled=true;acquiredStream?.getTracks().forEach(track=>track.stop());stream=null;recorder=null;resetRecordUi('Not recording');
+      if(request.userCancelled)recordStatus('Microphone request canceled.');
+      else if(e.name==='MicrophoneTimeoutError'){
+        const permission=await microphonePermission();
+        recordStatus(permission==='granted'?'Chrome reports microphone permission granted, but its audio request did not finish within 15 seconds. Close other apps using the mic, fully close Chrome/zMinutes, then reopen and retry.':permission==='denied'?recordMessage({name:'NotAllowedError'}):'Chrome did not finish opening the microphone within 15 seconds. Check for a permission prompt, then close and reopen zMinutes before retrying.',true);
+      }else recordStatus(recordMessage(e),true);
+    }finally{clearTimeout(requestTimer);if(pendingMicrophone===request)pendingMicrophone=null}
   };
   $z('generateSummaryBtn').onclick=()=>generateSummary();$z('recordBtn').onclick=()=>toggleRecord();
+  $z('audioFileInput').onchange=async e=>{
+    const file=e.target.files[0],meeting=current;e.target.value='';if(!file||!meeting)return;
+    if(!file.type.startsWith('audio/')&&!/\.(m4a|mp3|wav|webm)$/i.test(file.name)){recordStatus('Choose an audio recording (.m4a, .mp3, .wav, or .webm).',true);return}
+    recordStatus('Importing audio from this device…');
+    try{
+      meeting.audio=await asDataUrl(file);persist();
+      if(current?.id===meeting.id){
+        $z('recordLabel').textContent='Audio imported locally';
+        $z('transcriptStatus').textContent='Audio imported · '+Math.round(file.size/1024)+' KB';
+        recordStatus('Audio saved with this meeting on this device.');
+        if(meeting.cloudAudioAllowed)await transcribe(file);
+      }
+    }catch(error){console.error('Could not import audio:',error);recordStatus('Could not import audio: '+error.message,true)}
+  };
   $z('cloudAudioEnabled').addEventListener('change',()=>saveAiSettings(false));
   document.addEventListener('input',e=>{
     if(e.target.id==='transcriptInput'&&current){current.transcript=e.target.value;saveCurrent()}

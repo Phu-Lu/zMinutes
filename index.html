@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0078d4" />
   <meta name="description" content="A private, local-first meeting notebook." />
-  <link rel="manifest" href="manifest.webmanifest?v=16" />
+  <link rel="manifest" href="manifest.webmanifest?v=17" />
   <link rel="apple-touch-icon" href="zminutes-icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=17" />
   <style>
     :root { --ink:#1b1b1f; --muted:#5f636d; --paper:#f3f7fc; --card:#fff; --line:#d9e2ef; --brand:#0078d4; --lime:#d7efff; --danger:#d13438; }
     body { background:linear-gradient(130deg,#edf6ff 0,#f8fbff 42%,#f3f7fc 100%); }
@@ -51,6 +51,7 @@
       <div class="brand top-brand"><span class="brand-mark">z</span><span>zMinutes</span></div><nav id="crumbs" class="crumbs" aria-label="Breadcrumb"></nav></div>
       <div class="top-actions"><span id="syncState" class="sync-state" role="status">Local data</span><button id="aiSettingsBtn" class="secondary ai-settings-trigger" type="button" title="Open app settings">⚙ <span class="settings-label">Settings</span></button><button id="syncBtn" class="ghost" title="Sync through Google Drive">↻ Sync</button><button id="backupBtn" class="ghost">Backup</button><button id="restoreBtn" class="ghost">Restore</button><input id="restoreInput" type="file" accept=".zminutes.json,application/json" hidden><button id="installBtn" class="ghost" type="button" title="Install app" aria-label="Install app">⇩ <span class="install-label">Install app</span></button><button id="importMeetingBtn" class="ghost">Import</button><input id="importMeetingInput" type="file" accept=".meeting.json,application/json" hidden><button id="newMeetingBtn" class="primary" title="Create a new meeting">+ <span>New meeting</span></button></div>
     </header>
+    <div id="installNotice" class="install-notice hidden" role="status" aria-live="polite"></div>
 
     <section id="overviewView" class="view"></section>
 
@@ -65,7 +66,7 @@
       <div class="meeting-header"><div><input id="titleInput" class="title-input" placeholder="Untitled meeting" /><div class="meta-row"><input id="dateInput" type="datetime-local" /><input id="locationInput" placeholder="Location / Online" /></div></div><div class="status"><span id="saveState">Saved</span><button id="moreBtn" class="ghost">•••</button></div></div>
       <nav class="tabs" aria-label="Meeting content" role="tablist"><button type="button" class="tab active" role="tab" aria-selected="true" data-tab="note">Notes</button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="agenda">Agenda <span id="agendaBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="stakeholders">People <span id="stakeholderBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="field">Field notes <span id="photoBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="summary">Recap</button></nav>
       <div id="notePanel" class="panel">
-        <div class="record-strip"><div><span id="recordDot" class="record-dot"></span><strong id="recordLabel">Not recording</strong><span id="recordTimer">00:00</span></div><button id="recordBtn" class="record-btn">● <span>Record</span></button></div><p id="recordStatus" class="record-status" role="status" aria-live="polite"></p>
+        <div class="record-strip"><div><span id="recordDot" class="record-dot"></span><strong id="recordLabel">Not recording</strong><span id="recordTimer">00:00</span></div><button id="recordBtn" class="record-btn" aria-label="Record audio">● <span>Record</span></button></div><p id="recordStatus" class="record-status" role="status" aria-live="polite"></p><label class="audio-upload">↑ Import an audio recording from this device<input id="audioFileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm" hidden></label>
         <div class="quick-actions"><button class="quick" data-insert="decision">◇ Decision</button><button class="quick" data-insert="task">✓ Action item</button><button class="quick" data-insert="important">! Important</button></div>
         <textarea id="noteInput" class="note-input" placeholder="Capture what matters in the meeting…&#10;&#10;Tip: open Agenda to prepare questions before you meet."></textarea>
         <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Transcript</strong><small id="transcriptStatus">Recording is stored locally</small></div><textarea id="transcriptInput" class="transcript-input" placeholder="Transcript will appear here, or paste/edit it manually…"></textarea><p id="transcriptText" class="transcript-hint">Recording stays on this device. Enable cloud transcription in AI settings to transcribe audio.</p></div>
@@ -85,7 +86,7 @@
         </div><p id="aiHelp" class="settings-help">Choose Gemini, OpenAI, local Ollama, or an offline draft.</p><p class="settings-help">API keys are stored in this browser on this device, not synced or included in meeting exports. Anyone with access to this browser profile may be able to access them.</p><div class="settings-actions"><button id="saveAiSettingsBtn" class="primary" type="button">Save AI settings</button><button id="clearAiKeysBtn" class="secondary" type="button">Clear saved keys</button><span id="aiSaveStatus" role="status">Changes are saved on this device.</span></div>
       </section>
       <section class="settings-card"><div class="settings-card-head"><div><h2>Cloud transcription</h2><p>Transcription is optional and requires a provider key.</p></div></div><label class="ai-consent settings-consent"><input id="cloudAudioEnabled" type="checkbox"> Allow cloud transcription for new recordings</label><p class="settings-help">Meeting audio stays on your device unless you enable this option for a meeting and start cloud transcription.</p></section>
-      <section id="installHelp" class="settings-card"><div class="settings-card-head"><div><h2>Install zMinutes</h2><p>Keep zMinutes on your home screen for quick access.</p></div></div><p class="settings-help">Android Chrome: open the ⋮ menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>. If you have already installed zMinutes, open it from your home screen. On iPhone, use Safari’s Share menu → Add to Home Screen.</p></section>
+      <section id="installHelp" class="settings-card"><div class="settings-card-head"><div><h2>Install zMinutes</h2><p>Keep zMinutes on your home screen for quick access.</p></div></div><p id="installStatus" class="settings-help" role="status">Installation has not been confirmed in this browser session.</p><p class="settings-help">On Pixel/Android: after installing, swipe up to open the app drawer and search <strong>zMinutes</strong>. If it is not there, check Chrome’s ⋮ menu → <strong>Add to Home screen</strong>; a shortcut may appear on a Home screen instead of the app drawer. On iPhone, use Safari’s Share menu → Add to Home Screen.</p></section>
       <section class="settings-card drive-settings-card"><div class="settings-card-head"><div><h2>Google Drive sync</h2><p>Move projects, meetings, tasks, and field notes between PC and Android.</p></div><span id="driveStatus" class="settings-status" role="status" aria-live="polite">Not connected</span></div>
         <label class="drive-client-field">Google OAuth Web Client ID<input id="driveClientId" type="text" inputmode="url" autocomplete="off" placeholder="123456789-…apps.googleusercontent.com"></label>
         <p class="settings-help">Set this up once on each browser. In Google Cloud, enable the Drive API and add this authorized JavaScript origin: <code>https://phu-lu.github.io</code>. Use the same Google account and Client ID on PC and phone. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Open Google Cloud credentials</a>.</p>
@@ -97,9 +98,9 @@
   <dialog id="newMeetingDialog"><form id="newMeetingForm"><button class="dialog-close" type="button" value="cancel" aria-label="Close">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><label>Meeting template<select id="meetingTemplateSelect"><option value="">Blank meeting</option><option value="project">Project update</option><option value="site">Site inspection</option><option value="oneonone">1:1 meeting</option></select></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
   <script src="zminutes-storage.js"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
   <script src="zminutes-workflows.js?v=15"></script>
-  <script src="zminutes-ai.js?v=16"></script>
+  <script src="zminutes-ai.js?v=17"></script>
   <script src="zminutes-drive.js"></script>
 </body>
 </html>
