@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           mkdir _site
-          cp index.html styles.css app.js zminutes-storage.js zminutes-workflows.js zminutes-ai.js zminutes-drive.js sw.js manifest.webmanifest zminutes-icon.svg zminutes-icon-192.png zminutes-icon-512.png _site/
+          cp index.html styles.css app.js zminutes-storage.js zminutes-workflows.js zminutes-recorder.js zminutes-recorder-worklet.js zminutes-ai.js zminutes-drive.js sw.js manifest.webmanifest zminutes-icon.svg zminutes-icon-192.png zminutes-icon-512.png _site/
           touch _site/.nojekyll
 
       - name: Configure GitHub Pages

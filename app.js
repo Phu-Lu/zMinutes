@@ -3,13 +3,22 @@ let meetings = [];
 try { const storedMeetings = JSON.parse(localStorage.getItem('meeting-note-data') || '[]'); meetings = Array.isArray(storedMeetings) ? storedMeetings.filter(m=>m&&typeof m==='object').map(m=>({...m,title:String(m.title||''),location:String(m.location||''),note:String(m.note||''),agenda:Array.isArray(m.agenda)?m.agenda:[],photos:Array.isArray(m.photos)?m.photos:[],stakeholders:Array.isArray(m.stakeholders)?m.stakeholders:[]})) : []; } catch { meetings = []; }
 let current, activeTab = 'note', recorder, chunks = [], timer, elapsed = 0, deferredPrompt;
 const persist = () => {
-  try { localStorage.setItem('meeting-note-data', JSON.stringify(meetings)); }
+  let fullBackup = false;
+  try { localStorage.setItem('meeting-note-data', JSON.stringify(meetings)); fullBackup = true; }
   catch (err) {
     try { localStorage.setItem('meeting-note-data', JSON.stringify(meetings.map(m => ({ ...m, audio: null, photos: [] })))); }
     catch { console.warn('Meeting data is stored in IndexedDB; localStorage backup is full.', err); }
   }
-  window.ZMinutesStore?.put('meetings', meetings).catch(err => console.error('IndexedDB meeting save failed', err));
-  const state = $('#saveState'); if (state) state.textContent = 'Saved';
+  const saved = window.ZMinutesStore?.put('meetings', meetings)
+    .then(() => true)
+    .catch(err => { console.error('IndexedDB meeting save failed', err); return fullBackup; })
+    || Promise.resolve(fullBackup);
+  const state = $('#saveState');
+  if (state) {
+    state.textContent = fullBackup ? 'Saved' : 'Saving…';
+    saved.then(ok => { state.textContent = ok ? 'Saved' : 'Save failed'; });
+  }
+  return saved;
 };
 const uid = () => crypto.randomUUID();
 const nowLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
@@ -37,7 +46,7 @@ async function generateSummary(){saveCurrent();const button=$('#generateSummaryB
 function switchTab(tab){if(!current||!['note','agenda','stakeholders','field','summary'].includes(tab))return;activeTab=tab;renderEditor();}
 function insertQuick(type){const notes=$('#noteInput');const prefix={decision:'◇ DECISION: ',task:'✓ ACTION ITEM: ',important:'! IMPORTANT: '}[type];const at=notes.selectionStart;notes.setRangeText(`\n${prefix}`,at,notes.selectionEnd,'end');notes.focus();saveCurrent();}
 function formatTime(s){return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;}
-async function toggleRecord(){if(recorder?.state==='recording'){recorder.stop();return;}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});chunks=[];recorder=new MediaRecorder(stream);recorder.ondataavailable=e=>chunks.push(e.data);recorder.onstop=()=>{stream.getTracks().forEach(t=>t.stop());clearInterval(timer);$('#recordDot').classList.remove('live');$('#recordLabel').textContent='Audio saved locally';$('#recordBtn').classList.remove('live');$('#recordBtn span').textContent='Record';const blob=new Blob(chunks,{type:'audio/webm'});const reader=new FileReader();reader.onload=()=>{current.audio=reader.result;saveCurrent();$('#transcriptText').textContent='Audio is saved with this meeting. Connect local Whisper to generate a transcript.';};reader.readAsDataURL(blob);};recorder.start();elapsed=0;$('#recordDot').classList.add('live');$('#recordLabel').textContent='Recording';$('#recordBtn').classList.add('live');$('#recordBtn span').textContent='Stop';timer=setInterval(()=>{$('#recordTimer').textContent=formatTime(++elapsed)},1000);}catch(e){alert('Microphone access is unavailable. Allow microphone access, then try again.');}}
+async function toggleRecord(){const status=$('#recordStatus');status.textContent='Audio engine did not load. Reload zMinutes and try again.';status.classList.add('error');}
 function exportDoc(){saveCurrent();const body=`<h1>${esc(current.title)}</h1><p>${esc(formatDate(current.date))} — ${esc(current.location)}</p><h2>Ghi chú</h2><pre>${esc(current.note)}</pre><h2>Agenda</h2><ul>${current.agenda.map(x=>`<li>${esc(x.text)}</li>`).join('')}</ul><h2>Tóm tắt</h2>${current.summary||'<p>Chưa tạo tóm tắt.</p>'}`;const blob=new Blob([`<html><head><meta charset="utf-8"><title>${esc(current.title)}</title></head><body>${body}</body></html>`],{type:'application/msword'});download(blob,`${safeName(current.title)}.doc`);}
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}function safeName(s){return (s||'meeting-note').replace(/[\\/:*?"<>|]/g,'-');}
 function exportPackage(){saveCurrent();const copy=structuredClone(current);copy.exportedAt=new Date().toISOString();copy.format='meeting-note-package-v1';download(new Blob([JSON.stringify(copy,null,2)],{type:'application/json'}),`${safeName(current.title)}.meeting.json`);}
@@ -55,10 +64,11 @@ const installButton=$('#installBtn');
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 let installConfirmed=false;
 function installFeedback(message){$('#installNotice').textContent=message;$('#installNotice').classList.remove('hidden');$('#installStatus').textContent=message}
-if(isStandalone()){installButton.classList.add('hidden');$('#installStatus').textContent='zMinutes is running as an installed app.'}
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;if(!isStandalone())installButton.classList.remove('hidden')});
-window.addEventListener('appinstalled',()=>{installConfirmed=true;deferredPrompt=null;installButton.classList.add('hidden');installFeedback('zMinutes installed. On Pixel, swipe up and search zMinutes in the app drawer; installation may take a moment to appear.')});
+if(isStandalone())$('#installStatus').textContent='zMinutes is running as an installed app.';
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e});
+window.addEventListener('appinstalled',()=>{installConfirmed=true;deferredPrompt=null;installFeedback('zMinutes installed. On Pixel, swipe up and search zMinutes in the app drawer; installation may take a moment to appear.')});
 installButton.onclick=async()=>{
+  if(isStandalone()){installFeedback('zMinutes is already open as an installed app.');return}
   if(deferredPrompt){
     const prompt=deferredPrompt;deferredPrompt=null;
     try{
