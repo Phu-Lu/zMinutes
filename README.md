@@ -1,29 +1,23 @@
-# Meeting Note
+# zMinutes
 
-Ứng dụng ghi chú họp local-first cho PC và Android. Dữ liệu được lưu trong trình duyệt trên chính thiết bị, không cần tài khoản hay server.
+zMinutes is a personal, local-first meeting notebook for desktop and Android. It is a static installable PWA: GitHub Pages serves only the app files. There is no zMinutes backend, account, or server-side meeting database.
 
-## Chạy trên PC
+## Install
 
-Trong thư mục này, chạy:
+Open the app URL in Microsoft Edge on Windows or Chrome on Android, then choose **Install app** in the browser. After the first successful load, the app shell is cached for offline use. Meetings and settings are stored in that browser on that device.
+
+The GitHub Pages site is publicly reachable. This exposes the app code and interface, not the meetings stored in the browser. API keys are kept in the current browser session; meeting content is sent to a cloud AI only when the user selects that provider and requests a recap or explicitly enables cloud transcription.
+
+## Local development
+
+From this folder, run:
 
 ```powershell
-python -m http.server 4173
+python -m http.server 4174 --bind 127.0.0.1
 ```
 
-Sau đó mở `http://localhost:4173` trên Chrome hoặc Edge. Ở lần đầu, trình duyệt sẽ hỏi quyền microphone khi ghi âm.
+Then open <http://127.0.0.1:4174/>. Use a secure origin (HTTPS or localhost) for microphone, camera, service workers, and PWA installation.
 
-## Dùng trên Android
+## Data and sync
 
-Đưa thư mục này lên một web host tĩnh có HTTPS, mở đường link bằng Chrome Android, rồi chọn **Install app** / **Cài đặt ứng dụng** trong trình duyệt. Ứng dụng hoạt động offline sau lần tải đầu.
-
-## Hiện có
-
-- Tạo và tìm cuộc họp; agenda/câu hỏi có thể thêm trước hoặc trong họp.
-- Ghi chú, đánh dấu quyết định, việc cần làm và nội dung quan trọng.
-- Ghi âm microphone vào cuộc họp hiện tại.
-- Chụp/đính ảnh và ghi chú hiện trường.
-- Tạo tóm tắt cục bộ từ ghi chú; xuất PDF bằng hộp thoại in, xuất Word, chia sẻ và mở email draft.
-
-## Chưa tích hợp ở bản MVP
-
-Transcript bằng Whisper và tóm tắt bằng Ollama chưa được nối trực tiếp. UI và nơi lưu audio đã sẵn sàng để tích hợp AI local ở bước kế tiếp.
+The app stores meeting records in IndexedDB and uses localStorage as a fallback. Export a backup before clearing browser data or switching devices. Optional Google Drive sync shares selected app data; raw audio is excluded.
