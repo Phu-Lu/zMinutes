@@ -180,6 +180,9 @@
 
 /* zMinutes core workflow additions */
 .top-actions{gap:8px}.sync-state{font-size:11px;color:#557087;white-space:nowrap}
+.record-status{margin:7px 2px 0;min-height:18px;color:#49627b;font-size:12px;line-height:1.45}.record-status:empty{min-height:0;margin:0}.record-status.error{color:#b42318}.record-btn:disabled{opacity:.6;cursor:wait}
+.photo-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.photo-choice{min-height:130px;border:1.5px dashed #a7c5e4;border-radius:12px;background:#f8fbff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:#264b70;cursor:pointer;text-align:center;padding:15px}.photo-choice:hover,.photo-choice:focus-within{background:#eaf5ff;border-color:#0078d4}.photo-choice input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}.photo-choice small{color:#6b7d91}.field-photo-actions{grid-column:1/-1;display:flex;gap:9px;flex-wrap:wrap}.field-photo-actions .field-upload{border:1px solid #b8d2e9;border-radius:9px;background:#f7fbff;padding:10px 13px}.field-photo-actions .field-upload:hover{background:#eaf5ff}.field-preview{grid-column:1/-1}
+@media(max-width:599px){.photo-actions{grid-template-columns:1fr}.photo-choice{min-height:100px}.field-photo-actions{flex-direction:column;align-items:stretch}.field-photo-actions .field-upload{justify-content:center;min-height:44px}}
 .transcript-input{width:100%;min-height:130px;margin-top:9px;padding:11px;border:1px solid #d2e1ee;border-radius:9px;background:#f8fbfe;color:#1b1b1f;font:13px/1.55 system-ui;resize:vertical}
 .transcript-hint{font-size:12px;color:#dcefff}
 .ai-consent{display:flex!important;grid-template-columns:20px 1fr!important;align-items:center;gap:8px!important;padding:8px;border:1px solid #f0d89d;border-radius:8px;background:#fff9e9}
