@@ -36,7 +36,7 @@ Settings supports Gemini, OpenAI, Ollama, or a clearly labelled offline quick dr
 
 ## Updates and development checks
 
-This release is **2.0 / build 20** (visible in Settings). Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
+This release is **2.0 / build 21** (visible in Settings). Gemini transcription now uses the selected Gemini recap model by default; Settings also allows a separate transcription model. Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
 
 ```powershell
 npm ci

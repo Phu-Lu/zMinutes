@@ -1,4 +1,4 @@
-# Build 20 verification
+# Build 21 verification
 
 ## Automated
 
@@ -11,7 +11,7 @@ Tests write screenshots/PDFs to ignored `test-results/`. Browser tests do not gr
 
 On Windows Edge/Chrome, Pixel 6 Chrome, and Zebra ET40 Chrome:
 
-1. Confirm Settings shows build 20. Do not clear site storage to update.
+1. Confirm Settings shows build 21. Do not clear site storage to update.
 2. Create a meeting, click Record, speak for 15 seconds. Confirm the timer advances, Stop saves, playback is audible, and the downloaded WAV plays outside the app.
 3. Deny mic permission and retry after granting it. Cancel a pending request. Unplug a selected USB mic. Confirm no indefinite loading state.
 4. Record for at least 10 minutes. Switch meeting tabs and stop from the global banner. Test screen lock/background interruption; recover any interrupted audio from Settings.

@@ -223,11 +223,20 @@ const server = http.createServer((req, res) => {
       });
       return id;
     });
-    let releaseAI, requestStarted;
+    await page.evaluate(() => {
+      document.getElementById("aiProvider").value = "gemini";
+      document.getElementById("aiModel").value = "gemini-3.5-flash";
+      document.getElementById("aiApiKey").value = "test-only";
+      document.getElementById("transcriptionProvider").value = "gemini";
+      document.getElementById("transcriptionModel").value = "";
+      document.getElementById("saveAiSettingsBtn").click();
+    });
+    let releaseAI, requestStarted, transcriptionUrl;
     const started = new Promise((r) => (requestStarted = r));
     await page.route(
       "https://generativelanguage.googleapis.com/**",
       async (route) => {
+        transcriptionUrl = route.request().url();
         requestStarted();
         await new Promise((r) => (releaseAI = r));
         await route.fulfill({
@@ -250,6 +259,10 @@ const server = http.createServer((req, res) => {
       window.aiTest = ZM.ai.transcribe(id, media.blob);
     }, id);
     await started;
+    assert.match(
+      transcriptionUrl,
+      /\/models\/gemini-3\.5-flash:generateContent$/,
+    );
     await page.evaluate((other) => ZM.open(other), other);
     releaseAI();
     await page.evaluate(() => window.aiTest);

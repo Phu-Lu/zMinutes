@@ -27,6 +27,7 @@
     $("aiApiKey").value = cfg.keys?.[p] || "";
     $("ollamaUrl").value = cfg.url || "http://localhost:11434";
     $("transcriptionProvider").value = cfg.transcriptionProvider;
+    $("transcriptionModel").value = cfg.transcriptionModel || "";
     $("transcriptionApiKey").value = cfg.transcriptionKey || "";
     $("cloudAudioEnabled").checked = !!cfg.cloudAudio;
     fields();
@@ -46,6 +47,15 @@
         : p === "ollama"
           ? "Connect to your local Ollama installation. Allow this site origin in Ollama."
           : "The selected provider receives the meeting text when you generate a recap.";
+    const transcriptProvider = $("transcriptionProvider").value;
+    $("transcriptionModel").placeholder =
+      transcriptProvider === "gemini"
+        ? "Use selected Gemini model"
+        : "gpt-4o-mini-transcribe";
+    $("transcriptionModelHelp").textContent =
+      transcriptProvider === "gemini"
+        ? "Leave blank to use your selected Gemini recap model. If your recap provider differs, Gemini uses gemini-3.5-flash. Choose a Gemini model that accepts audio."
+        : "Leave blank to use gpt-4o-mini-transcribe. Your Gemini recap model does not control OpenAI transcription.";
   }
   function read() {
     return {
@@ -58,6 +68,7 @@
         [$("aiProvider").value]: $("aiApiKey").value.trim(),
       },
       transcriptionProvider: $("transcriptionProvider").value,
+      transcriptionModel: $("transcriptionModel").value.trim(),
       transcriptionKey: $("transcriptionApiKey").value.trim(),
       cloudAudio: $("cloudAudioEnabled").checked,
     };
@@ -74,6 +85,11 @@
     cfg.provider = $("aiProvider").value;
     $("aiModel").value = defaults[cfg.provider];
     $("aiApiKey").value = cfg.keys[cfg.provider] || "";
+    fields();
+    $("aiSaveStatus").textContent = "Unsaved settings";
+  };
+  $("transcriptionProvider").onchange = () => {
+    $("transcriptionModel").value = "";
     fields();
     $("aiSaveStatus").textContent = "Unsaved settings";
   };
@@ -276,6 +292,13 @@
         throw new Error("Cloud transcription is disabled for this meeting.");
       const p = c.transcriptionProvider,
         key = c.transcriptionKey || c.keys?.[p];
+      const model =
+        c.transcriptionModel?.trim() ||
+        (p === "gemini"
+          ? c.provider === "gemini"
+            ? c.model
+            : "gemini-3.5-flash"
+          : "gpt-4o-mini-transcribe");
       if (!key) throw new Error("Enter a " + p + " API key in Settings.");
       const decoder = new OfflineAudioContext(1, 1, 16000),
         audio = await decoder.decodeAudioData(await blob.arrayBuffer()),
@@ -296,7 +319,7 @@
         if (p === "openai") {
           const body = new FormData();
           body.append("file", part, "segment.wav");
-          body.append("model", "gpt-4o-mini-transcribe");
+          body.append("model", model);
           const d = await request(
             "https://api.openai.com/v1/audio/transcriptions",
             {
@@ -310,7 +333,9 @@
         } else {
           const data = (await S.toDataURL(part)).split(",")[1],
             d = await request(
-              "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+              "https://generativelanguage.googleapis.com/v1beta/models/" +
+                encodeURIComponent(model) +
+                ":generateContent",
               {
                 method: "POST",
                 headers: {
