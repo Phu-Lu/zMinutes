@@ -32,6 +32,8 @@
     if (kind === "meetings")
       Object.assign(r, {
         date: text(raw.date),
+        externalCalendarUid: text(raw.externalCalendarUid),
+        calendarSource: text(raw.calendarSource),
         location: text(raw.location),
         note: text(raw.note),
         transcript: text(raw.transcript),
@@ -97,6 +99,9 @@
       Object.assign(r, {
         meetingId: text(raw.meetingId),
         due: /^\d{4}-\d{2}-\d{2}$/.test(raw.due) ? raw.due : "",
+        remindAt: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw.remindAt)
+          ? raw.remindAt
+          : "",
         status: raw.status === "done" ? "done" : "in-progress",
       });
     if (kind === "fieldNotes")

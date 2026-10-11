@@ -34,9 +34,15 @@ Record starts the browser audio context directly from the button gesture. The au
 
 Settings supports Gemini, OpenAI, Ollama, or a clearly labelled offline quick draft (not a local language model). Gemini transcription can reuse the Gemini recap key; OpenAI transcription needs an OpenAI key. “Transcription provider” chooses the audio-to-text service; “Transcription API key” is optional if the same provider key is already entered above. The Cloud transcription switch sets only the default for **future** meetings; permission is still visible per meeting in Recap. Each meeting may contain multiple local audio clips. Transcription is stored per clip and the combined transcript is used for recaps, suggested solutions, Word, and PDF. A per-meeting recap prompt can be edited in Recap. Suggested solutions use project meetings, tasks, and field notes as internal context; optional web search uses the selected provider's native search tool (Gemini Google Search or OpenAI web search). Ollama uses project data only and cannot search the web without an additional search service. Project context is sent to the selected AI provider only when the user requests generation. AI jobs stay attached to their original meeting even if you navigate elsewhere. Existing recaps are kept if an AI request fails.
 
+## Reminders and calendar import
+
+Tasks can have an explicit reminder date/time. If no reminder is set, an unfinished task is highlighted as due or overdue from 9:00 on its due day. Meetings are highlighted when they are within 30 minutes of starting. zMinutes shows reminders when the app is open; Settings can also request browser notifications. A closed PWA cannot guarantee scheduled delivery. Telegram bot delivery while the app is closed requires a separate scheduled cloud job with a protected bot token and a readable copy of reminder data; this is not implemented in the local-only app.
+
+Calendar accepts an `.ics` file exported from Google Calendar, Outlook, or another company calendar. It imports events into the selected project, preserves existing imported meetings on re-import, and does not overwrite notes. Time zones and all-day events are handled; recurring series are not expanded automatically, so export individual occurrences if needed. Direct account-to-account calendar sync is not implemented yet.
+
 ## Updates and development checks
 
-This release is **2.0 / build 23** (visible in Settings). Gemini transcription uses the selected Gemini recap model by default; Settings also allows a separate transcription model. Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
+This release is **2.0 / build 24** (visible in Settings). Gemini transcription uses the selected Gemini recap model by default; Settings also allows a separate transcription model. Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
 
 ```powershell
 npm ci

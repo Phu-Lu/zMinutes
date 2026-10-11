@@ -608,6 +608,60 @@ const server = http.createServer((req, res) => {
     console.log(
       "PASS: two-device sync, concurrent edits, conflict resolution, local audio preserved",
     );
+    await page.evaluate(async () => {
+      const calendar = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "BEGIN:VEVENT",
+        "UID:company-42",
+        "SUMMARY:Company planning",
+        "DTSTART;TZID=Asia/Ho_Chi_Minh:20261020T093000",
+        "LOCATION:Conference room",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n");
+      const file = new File([calendar], "company.ics", {
+        type: "text/calendar",
+      });
+      await ZM.exports.importCalendar(file);
+      await ZM.exports.importCalendar(file);
+    });
+    assert.equal(
+      await page.evaluate(
+        () =>
+          ZM.data.meetings.filter((m) => m.externalCalendarUid === "company-42")
+            .length,
+      ),
+      1,
+    );
+    assert.equal(
+      await page.evaluate(() =>
+        new Date(
+          ZM.data.meetings.find(
+            (m) => m.externalCalendarUid === "company-42",
+          ).date,
+        ).toISOString(),
+      ),
+      "2026-10-20T02:30:00.000Z",
+    );
+    await page.evaluate(async () => {
+      await ZM.save("tasks", {
+        id: "reminder-task",
+        title: "Call supplier",
+        due: "2026-10-20",
+        remindAt: "2026-10-19T09:00",
+      });
+    });
+    assert.ok(
+      await page.evaluate(() =>
+        ZM.reminders
+          .due(new Date("2026-10-19T09:01:00"))
+          .some((r) => r.body === "Call supplier"),
+      ),
+    );
+    console.log(
+      "PASS: calendar import is idempotent and task reminder becomes due",
+    );
     await contextB.close();
     await context.close();
   } finally {

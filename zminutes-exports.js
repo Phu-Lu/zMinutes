@@ -290,6 +290,159 @@
       "zMinutes.ics",
     );
   }
+  function parseIcs(raw) {
+    const lines = raw
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\n[ \t]/g, "")
+      .split("\n");
+    const events = [];
+    let current = null;
+    for (const line of lines) {
+      if (line === "BEGIN:VEVENT") {
+        current = {};
+        continue;
+      }
+      if (line === "END:VEVENT") {
+        if (current) events.push(current);
+        current = null;
+        continue;
+      }
+      if (!current) continue;
+      const colon = line.indexOf(":");
+      if (colon < 0) continue;
+      const key = line.slice(0, colon),
+        value = line.slice(colon + 1);
+      const name = key.split(";")[0].toUpperCase();
+      if (
+        [
+          "UID",
+          "SUMMARY",
+          "DESCRIPTION",
+          "LOCATION",
+          "STATUS",
+          "RECURRENCE-ID",
+          "DTSTART",
+        ].includes(name)
+      )
+        current[name] = { key, value };
+    }
+    const unescape = (s) =>
+      s
+        .replace(/\\[nN]/g, "\n")
+        .replace(/\\,/g, ",")
+        .replace(/\\;/g, ";")
+        .replace(/\\\\/g, "\\");
+    const local = (time) => {
+      if (!time) return "";
+      const value = time.value;
+      if (/^\d{8}$/.test(value))
+        return (
+          value.slice(0, 4) +
+          "-" +
+          value.slice(4, 6) +
+          "-" +
+          value.slice(6, 8) +
+          "T09:00"
+        );
+      const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(
+        value,
+      );
+      if (!match) return "";
+      const [, y, mo, day, hour, minute, second, utc] = match;
+      const tz = /(?:^|;)TZID=([^;]+)/i
+        .exec(time.key)?.[1]
+        ?.replace(/^"|"$/g, "");
+      if (!utc && !tz) return `${y}-${mo}-${day}T${hour}:${minute}`;
+      let stamp = Date.UTC(+y, +mo - 1, +day, +hour, +minute, +(second || 0));
+      if (tz && !utc) {
+        try {
+          const format = new Intl.DateTimeFormat("en-US", {
+            timeZone: tz,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hourCycle: "h23",
+          });
+          for (let i = 0; i < 3; i++) {
+            const parts = Object.fromEntries(
+              format
+                .formatToParts(new Date(stamp))
+                .map((p) => [p.type, p.value]),
+            );
+            const shown = Date.UTC(
+              +parts.year,
+              +parts.month - 1,
+              +parts.day,
+              +parts.hour,
+              +parts.minute,
+              +parts.second,
+            );
+            stamp +=
+              Date.UTC(+y, +mo - 1, +day, +hour, +minute, +(second || 0)) -
+              shown;
+          }
+        } catch {
+          return "";
+        }
+      }
+      const date = new Date(stamp);
+      return new Date(stamp - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+    };
+    return events
+      .filter((event) => event.STATUS?.value !== "CANCELLED")
+      .map((event) => ({
+        uid: (event.UID?.value || "") + (event["RECURRENCE-ID"]?.value || ""),
+        title: unescape(event.SUMMARY?.value || "Untitled event"),
+        date: local(event.DTSTART),
+        location: unescape(event.LOCATION?.value || ""),
+        note: unescape(event.DESCRIPTION?.value || ""),
+      }))
+      .filter((event) => event.uid && event.date);
+  }
+  async function importCalendar(file) {
+    if (file.size > 5 * 1024 * 1024)
+      throw new Error("Choose an .ics calendar file smaller than 5 MB.");
+    const events = parseIcs(await file.text());
+    if (!events.length)
+      throw new Error("No dated events found in this .ics file.");
+    if (events.length > 5000)
+      throw new Error(
+        "This calendar contains too many events to import at once.",
+      );
+    await A.flush();
+    const existing = new Set(
+      A.data.meetings
+        .filter((meeting) => meeting.projectId === A.project)
+        .map((meeting) => meeting.externalCalendarUid)
+        .filter(Boolean),
+    );
+    let added = 0;
+    for (const event of events) {
+      if (existing.has(event.uid)) continue;
+      await A.save("meetings", {
+        id: crypto.randomUUID(),
+        projectId: A.project,
+        title: event.title,
+        date: event.date,
+        location: event.location,
+        note: event.note,
+        externalCalendarUid: event.uid,
+        calendarSource: file.name,
+      });
+      existing.add(event.uid);
+      added++;
+    }
+    A.renderSection();
+    A.notice(
+      `${added} calendar events imported; ${events.length - added} already present.`,
+    );
+  }
   $("pdfBtn").onclick = () => A.run(print);
   $("docBtn").onclick = () => A.run(word);
   $("packageBtn").onclick = () => A.run(meetingPackage);
@@ -326,5 +479,14 @@
             .join("\n\n"),
         );
     });
-  A.exports = { calendar, print, word, zip, blocks, importPackage };
+  A.exports = {
+    calendar,
+    importCalendar,
+    parseIcs,
+    print,
+    word,
+    zip,
+    blocks,
+    importPackage,
+  };
 })();

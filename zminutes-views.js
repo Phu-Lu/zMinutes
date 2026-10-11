@@ -294,14 +294,14 @@
         );
       box.innerHTML =
         head("Tasks", "Shared by your project dashboard and calendar.") +
-        `<section class="ov-card task-create"><h2>Add a task</h2><form id="taskForm" class="task-form"><input id="taskTitle" required placeholder="What needs to be done?" value="${e(d.title || "")}"><input id="taskDue" type="date" value="${e(d.due || A.day)}"><select id="taskMeeting"><option value="">No linked meeting</option>${meetings()
+        `<section class="ov-card task-create"><h2>Add a task</h2><form id="taskForm" class="task-form"><input id="taskTitle" required placeholder="What needs to be done?" value="${e(d.title || "")}"><input id="taskDue" type="date" value="${e(d.due || A.day)}"><label>Remind at<input id="taskRemindAt" type="datetime-local" value="${e(d.remindAt || "")}"></label><select id="taskMeeting"><option value="">No linked meeting</option>${meetings()
           .map(
             (m) =>
               `<option value="${e(m.id)}" ${d.meetingId === m.id ? "selected" : ""}>${e(m.title)}</option>`,
           )
           .join(
             "",
-          )}</select><button class="primary">+ Add task</button></form></section><section class="ov-card">${ts.map((t) => `<article class="task-card"><span class="signal ${light(t)}" title="${label(t)}"></span><div><strong>${e(t.title)}</strong><small>${label(t)} · ${e(t.due || "No due date")}${t.meetingId ? " · " + e(A.data.meetings.find((m) => m.id === t.meetingId)?.title || "Unlinked meeting") : ""}</small><details class="task-edit"><summary>Edit</summary><form data-task-edit="${e(t.id)}"><input name="title" required value="${e(t.title)}" aria-label="Task title"><input name="due" type="date" value="${e(t.due)}"><button class="secondary">Save changes</button></form></details></div><select data-task-status="${e(t.id)}" aria-label="Task status"><option value="in-progress" ${t.status !== "done" ? "selected" : ""}>In progress</option><option value="done" ${t.status === "done" ? "selected" : ""}>Completed</option></select><button class="mini-delete" data-delete-task="${e(t.id)}" aria-label="Delete task">×</button></article>`).join("") || empty("No tasks yet.")}</section>`;
+          )}</select><button class="primary">+ Add task</button></form></section><section class="ov-card">${ts.map((t) => `<article class="task-card"><span class="signal ${light(t)}" title="${label(t)}"></span><div><strong>${e(t.title)}</strong><small>${label(t)} · ${e(t.due || "No due date")}${t.remindAt ? " · Reminder " + e(date(t.remindAt)) : ""}${t.meetingId ? " · " + e(A.data.meetings.find((m) => m.id === t.meetingId)?.title || "Unlinked meeting") : ""}</small><details class="task-edit"><summary>Edit</summary><form data-task-edit="${e(t.id)}"><input name="title" required value="${e(t.title)}" aria-label="Task title"><input name="due" type="date" value="${e(t.due)}"><label>Remind at<input name="remindAt" type="datetime-local" value="${e(t.remindAt)}"></label><button class="secondary">Save changes</button></form></details></div><select data-task-status="${e(t.id)}" aria-label="Task status"><option value="in-progress" ${t.status !== "done" ? "selected" : ""}>In progress</option><option value="done" ${t.status === "done" ? "selected" : ""}>Completed</option></select><button class="mini-delete" data-delete-task="${e(t.id)}" aria-label="Delete task">×</button></article>`).join("") || empty("No tasks yet.")}</section>`;
     } else if (A.section === "calendar") {
       const d = new Date(A.day + "T12:00:00"),
         y = d.getFullYear(),
@@ -332,8 +332,13 @@
                 `<button class="calendar-entry" ${x.id ? 'data-open="' + e(x.id) + '"' : 'data-go="tasks"'}><span>${x.type}</span><strong>${e(x.title)}</strong></button>`,
             )
             .join("") || empty("Nothing scheduled.")
-        }<button id="icsBtn" class="link-btn">Export calendar (.ics)</button></div></section>`;
+        }<div class="calendar-import-actions"><button id="icsBtn" class="link-btn">Export calendar (.ics)</button><label class="link-btn">Import calendar (.ics)<input id="icsImportInput" type="file" accept=".ics,text/calendar" hidden></label></div><p class="settings-help">Import a Google Calendar or company calendar .ics file. Re-import skips duplicate events. Recurring series are not expanded automatically; export individual occurrences if needed.</p></div></section>`;
       $("icsBtn").onclick = () => A.exports.calendar();
+      $("icsImportInput").onchange = (event) => {
+        const file = event.target.files[0];
+        event.target.value = "";
+        if (file) A.run(() => A.exports.importCalendar(file));
+      };
     } else if (A.section === "field") {
       const d = A.drafts.field || {},
         fs = A.data.fieldNotes.filter((f) => f.projectId === A.project),

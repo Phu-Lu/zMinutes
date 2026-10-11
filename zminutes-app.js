@@ -452,6 +452,7 @@
           projectId: A.project,
           title,
           due: $("taskDue").value,
+          remindAt: $("taskRemindAt").value,
           meetingId: $("taskMeeting").value,
           status: "in-progress",
         });
@@ -462,7 +463,12 @@
         const t = A.data.tasks.find((t) => t.id === f.dataset.taskEdit),
           title = f.elements.title.value.trim();
         if (!title) return;
-        await A.save("tasks", { ...t, title, due: f.elements.due.value });
+        await A.save("tasks", {
+          ...t,
+          title,
+          due: f.elements.due.value,
+          remindAt: f.elements.remindAt.value,
+        });
         return A.renderSection();
       }
       if (f.id === "fieldForm") {
@@ -546,6 +552,7 @@
       A.drafts.task = {
         title: $("taskTitle").value,
         due: $("taskDue").value,
+        remindAt: $("taskRemindAt").value,
         meetingId: $("taskMeeting").value,
       };
     if (t.closest("#fieldForm"))
