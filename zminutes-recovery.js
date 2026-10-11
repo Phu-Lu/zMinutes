@@ -12,10 +12,19 @@
     return `${data.meetings.length} meetings, ${data.tasks.length} tasks, ${data.fieldNotes.length} field notes`;
   };
   const showPreview = (raw, source) => {
-    counts(raw);
+    const data = M.validateBackup(raw);
     preview = raw;
+    const names = data.meetings.length
+      ? `<details><summary>Show meeting names (${data.meetings.length})</summary><ul>${data.meetings
+          .map(
+            (meeting) =>
+              `<li>${A.esc(meeting.title || "Untitled meeting")} · ${A.esc(meeting.date || "No date")}</li>`,
+          )
+          .join("")}</ul></details>`
+      : "";
     $("dataRecoveryList").innerHTML =
       `<div class="file-row"><span>${A.esc(source)} · ${A.esc(counts(raw))}</span></div>` +
+      names +
       '<div class="settings-actions"><button class="secondary" data-download-recovery>Download this copy</button><button class="primary" data-import-recovery>Recover missing items</button></div>';
     report("Preview ready. Existing items will remain untouched.");
   };

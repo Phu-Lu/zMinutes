@@ -464,8 +464,16 @@
         for (const [key, heads] of Object.entries(reduced.heads)) {
           const prior = old.find((r) => M.key(r.kind, r.id) === key),
             entry = reduced.entities[key],
-            sample = byId.get(heads[0]),
-            value = entry ? M.normalize(sample.kind, entry.value) : null;
+            sample = byId.get(heads[0]);
+          // Keep this device's visible version if concurrent edits disagree.
+          // Every version remains in the journal and the user must resolve it.
+          const conflicted = reduced.conflicts.some((c) => c.key === key);
+          let value =
+            conflicted && prior?.value
+              ? M.normalize(sample.kind, prior.value)
+              : entry
+                ? M.normalize(sample.kind, entry.value)
+                : null;
           if (value && sample.kind === "meetings" && prior?.value) {
             value.audioId = prior.value.audioId || "";
             value.recordings = prior.value.recordings || [];

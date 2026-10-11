@@ -490,6 +490,7 @@ const server = http.createServer((req, res) => {
     console.log("PASS: offline reload and no unhandled browser errors");
     // Two isolated browser devices with a fake Drive transport; exercise the production sync adapter.
     const drive = [],
+      legacyFiles = [],
       folders = [],
       routeDrive = async (route) => {
         const request = route.request(),
@@ -512,15 +513,19 @@ const server = http.createServer((req, res) => {
           folders.push({ id });
           result = { id };
         } else if (url.searchParams.get("alt") === "media")
-          result = drive.find((f) => url.pathname.endsWith("/" + f.id)).payload;
+          result = [...drive, ...legacyFiles].find((f) =>
+            url.pathname.endsWith("/" + f.id),
+          ).payload;
         else {
           const q = url.searchParams.get("q") || "";
           result = {
             files: q.includes("appProperties")
               ? drive.map(({ payload, ...f }) => f)
-              : q.includes("folder")
-                ? folders
-                : [],
+              : q.includes("name='zminutes-sync.json'")
+                ? legacyFiles.map(({ payload, ...f }) => f)
+                : q.includes("folder")
+                  ? folders
+                  : [],
           };
         }
         await route.fulfill({ json: result });
@@ -605,8 +610,90 @@ const server = http.createServer((req, res) => {
     assert.ok(
       drive.every((f) => !JSON.stringify(f.payload).includes("data:audio")),
     );
+    const phoneMeetingId = await phone.evaluate(async () => {
+      const id = crypto.randomUUID();
+      await ZM.save("meetings", {
+        id,
+        projectId: "inbox",
+        title: "Phone-created meeting",
+        note: "Important new phone notes",
+        date: "2026-10-22T14:00",
+        agenda: [
+          {
+            id: crypto.randomUUID(),
+            text: "Phone question",
+            note: "Phone answer",
+          },
+        ],
+      });
+      return id;
+    });
+    await phone.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      await phone.evaluate(
+        (id) => ZM.data.meetings.find((m) => m.id === id)?.note,
+        phoneMeetingId,
+      ),
+      "Important new phone notes",
+    );
+    await page.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      await page.evaluate(
+        (id) => ZM.data.meetings.find((m) => m.id === id)?.note,
+        phoneMeetingId,
+      ),
+      "Important new phone notes",
+    );
+    await phone.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      await phone.evaluate(
+        (id) => ZM.data.meetings.find((m) => m.id === id)?.agenda[0].note,
+        phoneMeetingId,
+      ),
+      "Phone answer",
+    );
+    legacyFiles.push({
+      id: "legacy-snapshot",
+      name: "zminutes-sync.json",
+      modifiedTime: "2026-10-11T00:00:00Z",
+      payload: {
+        app: "zMinutes",
+        projects: [{ id: "inbox", name: "Personal Workspace" }],
+        meetings: [
+          { id: phoneMeetingId, title: "Stale PC copy", note: "old" },
+          { id: "stale-only", title: "Old snapshot record" },
+        ],
+      },
+    });
+    await phone.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      await phone.evaluate(
+        (id) => ZM.data.meetings.find((m) => m.id === id)?.note,
+        phoneMeetingId,
+      ),
+      "Important new phone notes",
+    );
+    assert.equal(
+      await phone.evaluate(() =>
+        ZM.data.meetings.some((m) => m.id === "stale-only"),
+      ),
+      false,
+    );
+    const activeFiles = drive.splice(0);
+    await phone.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      drive.length,
+      0,
+      "Do not upload local work into a legacy-only Drive",
+    );
+    assert.match(
+      await phone.locator("#syncState").textContent(),
+      /Sync paused · old Drive copy/,
+    );
+    drive.push(...activeFiles);
+    legacyFiles.length = 0;
     console.log(
-      "PASS: two-device sync, concurrent edits, conflict resolution, local audio preserved",
+      "PASS: two-device sync, fresh phone meeting, conflicts, and legacy-snapshot safety",
     );
     await page.evaluate(async () => {
       const calendar = [
@@ -662,6 +749,18 @@ const server = http.createServer((req, res) => {
     console.log(
       "PASS: calendar import is idempotent and task reminder becomes due",
     );
+    await phone.evaluate(async (id) => {
+      await ZMinutesStore.remove("meetings", id);
+      await ZM.reload();
+      await ZM.navigate("settings");
+    }, phoneMeetingId);
+    await phone.locator("#scanLocalHistoryBtn").click();
+    await phone.waitForFunction(() =>
+      document
+        .getElementById("dataRecoveryList")
+        .textContent.includes("Phone-created meeting"),
+    );
+    console.log("PASS: recovery preview identifies missing meeting by title");
     await contextB.close();
     await context.close();
   } finally {

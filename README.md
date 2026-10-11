@@ -42,7 +42,7 @@ Calendar accepts an `.ics` file exported from Google Calendar, Outlook, or anoth
 
 ## Updates and development checks
 
-This release is **2.0 / build 24** (visible in Settings). Gemini transcription uses the selected Gemini recap model by default; Settings also allows a separate transcription model. Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
+This release is **2.0 / build 25** (visible in Settings). Gemini transcription uses the selected Gemini recap model by default; Settings also allows a separate transcription model. Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
 
 ```powershell
 npm ci

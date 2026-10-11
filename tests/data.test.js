@@ -126,6 +126,27 @@ test("remote changes retain local audio and conflict versions", async () => {
   assert.equal(m.audioId, "local-audio");
   assert.equal(m.title, "Phone");
 });
+test("concurrent remote change cannot silently hide this device's meeting", async () => {
+  const { store: S } = repository();
+  await S.init();
+  await S.put("meetings", {
+    id: "meeting",
+    title: "Phone meeting",
+    note: "Unsynced field notes",
+  });
+  await S.merge([
+    {
+      app: "zMinutes",
+      format: "changes-v2",
+      ops: [change("0000-remote", [], "Older PC copy")],
+      media: {},
+    },
+  ]);
+  const meeting = (await S.snapshot()).meetings[0];
+  assert.equal(meeting.title, "Phone meeting");
+  assert.equal(meeting.note, "Unsynced field notes");
+  assert.equal(M.reduce(await S.all("journal")).conflicts.length, 1);
+});
 test("multiple recordings survive backup/restore; missing-only recovery does not overwrite", async () => {
   const { store: S } = repository();
   await S.init();

@@ -223,18 +223,37 @@
           bundles.push(await api("drive/v3/files/" + f.id + "?alt=media"));
           received.push(f.id);
         }
-      for (const f of await list(
-        "trashed=false and name='zminutes-sync.json'",
-      )) {
-        const key = "legacy:" + f.id + ":" + f.modifiedTime;
-        if (!seen.has(key)) {
-          bundles.push(
-            await legacyBundle(
-              await api("drive/v3/files/" + f.id + "?alt=media"),
-              f,
-            ),
-          );
-          received.push(key);
+      // A v1 snapshot must never be mixed into an active v2 change history.
+      // Its old values can conflict with (and visually hide) newer edits.
+      if (!files.length) {
+        const legacy = await list(
+          "trashed=false and name='zminutes-sync.json'",
+        );
+        if (legacy.length) {
+          const local = await S.snapshot();
+          const hasLocalWork =
+            ["meetings", "tasks", "fieldNotes"].some(
+              (kind) => local[kind].length,
+            ) || local.projects.some((project) => project.id !== "inbox");
+          if (hasLocalWork) {
+            status(
+              "Sync paused · old Drive copy and local work both exist. Download a backup, then inspect Recovery.",
+            );
+            return;
+          }
+          const f = legacy.sort((a, b) =>
+            String(b.modifiedTime).localeCompare(String(a.modifiedTime)),
+          )[0];
+          const key = "legacy:" + f.id;
+          if (!seen.has(key)) {
+            bundles.push(
+              await legacyBundle(
+                await api("drive/v3/files/" + f.id + "?alt=media"),
+                f,
+              ),
+            );
+            received.push(key);
+          }
         }
       }
       if (A.recording || A.aiBusy) {
@@ -274,12 +293,14 @@
         await S.acknowledge(batch.map((o) => o.id));
         await S.meta("drive-seen-v2", [...seen]);
       }
-      status(
-        (await S.pending()).length
-          ? "New changes are waiting for sync"
-          : "Synced · " + new Date().toLocaleTimeString(),
-      );
       await A.renderConflicts();
+      status(
+        A.conflicts.length
+          ? `${A.conflicts.length} sync conflict(s) · review Settings before editing those items`
+          : (await S.pending()).length
+            ? "New changes are waiting for sync"
+            : "Synced · " + new Date().toLocaleTimeString(),
+      );
     } catch (e) {
       console.error(e);
       status("Sync needs attention · " + e.message);
