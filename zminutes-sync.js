@@ -5,6 +5,7 @@
     $ = A.$,
     CLIENT = "zminutes-drive-client-id";
   let token = "",
+    authorizedClient = "",
     folder = "",
     syncing = false,
     gis;
@@ -77,6 +78,7 @@
           if (r.error) reject(new Error(r.error_description || r.error));
           else {
             token = r.access_token;
+            authorizedClient = client;
             folder = "";
             resolve();
           }
@@ -84,6 +86,12 @@
       });
       c.requestAccessToken();
     });
+  }
+  async function ensureAuthorized() {
+    if (token && authorizedClient === $("driveClientId").value.trim()) return;
+    token = "";
+    authorizedClient = "";
+    await authorize();
   }
   async function api(path, options = {}) {
     const controller = new AbortController(),
@@ -97,6 +105,7 @@
       if (!r.ok) {
         if (r.status === 401) {
           token = "";
+          authorizedClient = "";
           throw new Error("Google session expired. Tap Sync now to reconnect.");
         }
         throw new Error("Drive returned " + r.status);
@@ -164,39 +173,28 @@
       body,
     });
   }
-  const hash = async (s) =>
-    [
-      ...new Uint8Array(
-        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)),
-      ),
-    ]
-      .map((x) => x.toString(16).padStart(2, "0"))
-      .join("");
-  async function legacyBundle(raw, file) {
-    const data = ZMinutesModel.validateBackup(raw),
-      ops = [],
-      media = {};
-    data.tasks = ZMinutesModel.legacyTasks(data.meetings, data.tasks);
-    for (const kind of ["projects", "meetings", "tasks", "fieldNotes"])
-      for (const record of data[kind]) {
-        const value = ZMinutesModel.publicValue(kind, record);
-        for (const p of value.photos || []) {
-          if (p.data?.startsWith("data:image/")) {
-            p.mediaId = "legacy-image-" + (await hash(p.data));
-            media[p.mediaId] = { name: "Imported field photo", data: p.data };
-          }
-          delete p.data;
-        }
-        const id =
-          "legacy-" +
-          file.id +
-          "-" +
-          (await hash(kind + JSON.stringify(value)));
-        ops.push({ id, kind, entityId: value.id, parents: [], value });
-      }
-    return { app: "zMinutes", format: "changes-v2", ops, media };
+  async function verifyUpload(file, payload) {
+    if (!file?.id) throw new Error("Drive did not return an upload ID.");
+    const remote = await api("drive/v3/files/" + file.id + "?alt=media");
+    if (JSON.stringify(remote) !== JSON.stringify(payload))
+      throw new Error(
+        "Drive upload verification failed. Local changes are still pending.",
+      );
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const visible = await list(
+        "trashed=false and appProperties has { key='zminutes' and value='changes-v2' }",
+      );
+      if (visible.some((item) => item.id === file.id)) return;
+      if (attempt < 2)
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * (attempt + 1)),
+        );
+    }
+    throw new Error(
+      "Drive saved changes but cannot list them yet. Local changes remain pending; retry Sync later.",
+    );
   }
-  async function sync(manual = true) {
+  async function sync(manual = true, initialize = false) {
     if (syncing) return;
     if (!A.ready) return;
     if (A.recording || A.aiBusy) {
@@ -211,49 +209,44 @@
     try {
       await A.flush();
       status("Connecting to Drive…");
-      if (!token) await authorize();
+      await S.republishLegacy();
+      await ensureAuthorized();
       const seen = new Set((await S.get("meta", "drive-seen-v2")) || []),
         bundles = [],
         received = [];
       const files = await list(
         "trashed=false and appProperties has { key='zminutes' and value='changes-v2' }",
       );
+      $("newDriveHistory").hidden = true;
       for (const f of files)
         if (!seen.has(f.id)) {
           bundles.push(await api("drive/v3/files/" + f.id + "?alt=media"));
           received.push(f.id);
         }
-      // A v1 snapshot must never be mixed into an active v2 change history.
-      // Its old values can conflict with (and visually hide) newer edits.
+      // A v1 snapshot is only inspected through Recovery. Importing it as if it
+      // were an already-uploaded v2 change makes other devices miss its data.
       if (!files.length) {
+        const local = await S.snapshot();
+        const hasLocalWork =
+          ["meetings", "tasks", "fieldNotes"].some(
+            (kind) => local[kind].length,
+          ) || local.projects.some((project) => project.id !== "inbox");
         const legacy = await list(
           "trashed=false and name='zminutes-sync.json'",
         );
-        if (legacy.length) {
-          const local = await S.snapshot();
-          const hasLocalWork =
-            ["meetings", "tasks", "fieldNotes"].some(
-              (kind) => local[kind].length,
-            ) || local.projects.some((project) => project.id !== "inbox");
-          if (hasLocalWork) {
-            status(
-              "Sync paused · old Drive copy and local work both exist. Download a backup, then inspect Recovery.",
-            );
-            return;
-          }
-          const f = legacy.sort((a, b) =>
-            String(b.modifiedTime).localeCompare(String(a.modifiedTime)),
-          )[0];
-          const key = "legacy:" + f.id;
-          if (!seen.has(key)) {
-            bundles.push(
-              await legacyBundle(
-                await api("drive/v3/files/" + f.id + "?alt=media"),
-                f,
-              ),
-            );
-            received.push(key);
-          }
+        if (legacy.length && !initialize) {
+          $("newDriveHistory").hidden = !hasLocalWork;
+          status(
+            "Sync paused · old Drive snapshot found. Inspect it in Recovery before starting a new history.",
+          );
+          return;
+        }
+        if (hasLocalWork && !initialize) {
+          $("newDriveHistory").hidden = false;
+          status(
+            "Sync paused · no Drive history visible. Check account and Client ID, or start a new history in Settings.",
+          );
+          return;
         }
       }
       if (A.recording || A.aiBusy) {
@@ -265,6 +258,9 @@
         document.querySelector(".app").inert = true;
         try {
           await S.merge(bundles);
+          await S.acknowledge(
+            bundles.flatMap((bundle) => bundle.ops.map((op) => op.id)),
+          );
           await A.reload();
           received.forEach((id) => seen.add(id));
           await S.meta("drive-seen-v2", [...seen]);
@@ -288,6 +284,8 @@
           payload = await S.bundle(batch);
         if (payload.ops.length) {
           const uploaded = await upload(payload);
+          status("Verifying Drive upload…");
+          await verifyUpload(uploaded, payload);
           seen.add(uploaded.id);
         }
         await S.acknowledge(batch.map((o) => o.id));
@@ -315,10 +313,15 @@
       if (!id.endsWith(".apps.googleusercontent.com"))
         throw new Error("Use an OAuth Web Client ID, not an API key.");
       localStorage.setItem(CLIENT, id);
+      token = "";
+      authorizedClient = "";
+      folder = "";
+      $("newDriveHistory").hidden = true;
       await loadGIS();
       status("Ready · tap Sync now");
     });
   $("syncBtn").onclick = $("syncSettingsBtn").onclick = () => sync();
+  $("startDriveHistoryBtn").onclick = () => sync(true, true);
   window.addEventListener("zminutes:datachange", () => {
     if (syncing) return;
     status("Local changes · tap Sync now");
@@ -378,11 +381,8 @@
   };
   A.sync = {
     sync,
-    legacyBundle,
     list,
     api,
-    prepareRecovery: async () => {
-      if (!token) await authorize();
-    },
+    prepareRecovery: ensureAuthorized,
   };
 })();

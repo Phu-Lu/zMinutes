@@ -492,49 +492,60 @@ const server = http.createServer((req, res) => {
     const drive = [],
       legacyFiles = [],
       folders = [],
-      routeDrive = async (route) => {
-        const request = route.request(),
-          url = new URL(request.url());
-        let result;
-        if (url.pathname.includes("/upload/")) {
-          const boundary = request
-              .headers()
-              ["content-type"].split("boundary=")[1],
-            segments = request.postData().split("--" + boundary),
-            read = (s) =>
-              JSON.parse(s.split("\r\n\r\n").slice(1).join("\r\n\r\n").trim()),
-            meta = read(segments[1]),
-            payload = read(segments[2]),
-            id = "file-" + drive.length;
-          drive.push({ ...meta, id, payload });
-          result = { id };
-        } else if (request.method() === "POST") {
-          const id = "folder-" + folders.length;
-          folders.push({ id });
-          result = { id };
-        } else if (url.searchParams.get("alt") === "media")
-          result = [...drive, ...legacyFiles].find((f) =>
-            url.pathname.endsWith("/" + f.id),
-          ).payload;
-        else {
-          const q = url.searchParams.get("q") || "";
-          result = {
-            files: q.includes("appProperties")
-              ? drive.map(({ payload, ...f }) => f)
-              : q.includes("name='zminutes-sync.json'")
-                ? legacyFiles.map(({ payload, ...f }) => f)
-                : q.includes("folder")
-                  ? folders
-                  : [],
-          };
-        }
-        await route.fulfill({ json: result });
-      };
-    await context.route("https://www.googleapis.com/**", routeDrive);
+      withheldUploadIds = new Set();
+    let phoneCanSeeDrive = true,
+      withholdNewUploads = false;
+    const routeDrive = async (route, hideDrive = false) => {
+      const request = route.request(),
+        url = new URL(request.url());
+      let result;
+      if (url.pathname.includes("/upload/")) {
+        const boundary = request
+            .headers()
+            ["content-type"].split("boundary=")[1],
+          segments = request.postData().split("--" + boundary),
+          read = (s) =>
+            JSON.parse(s.split("\r\n\r\n").slice(1).join("\r\n\r\n").trim()),
+          meta = read(segments[1]),
+          payload = read(segments[2]),
+          id = "file-" + drive.length;
+        drive.push({ ...meta, id, payload });
+        if (withholdNewUploads) withheldUploadIds.add(id);
+        result = { id };
+      } else if (request.method() === "POST") {
+        const id = "folder-" + folders.length;
+        folders.push({ id });
+        result = { id };
+      } else if (url.searchParams.get("alt") === "media")
+        result = [...drive, ...legacyFiles].find((f) =>
+          url.pathname.endsWith("/" + f.id),
+        ).payload;
+      else {
+        const q = url.searchParams.get("q") || "";
+        result = {
+          files: q.includes("appProperties")
+            ? (hideDrive
+                ? []
+                : drive.filter((f) => !withheldUploadIds.has(f.id))
+              ).map(({ payload, ...f }) => f)
+            : q.includes("name='zminutes-sync.json'")
+              ? legacyFiles.map(({ payload, ...f }) => f)
+              : q.includes("folder")
+                ? folders
+                : [],
+        };
+      }
+      await route.fulfill({ json: result });
+    };
+    await context.route("https://www.googleapis.com/**", (route) =>
+      routeDrive(route),
+    );
     const contextB = await browser.newContext({
       viewport: { width: 800, height: 1000 },
     });
-    await contextB.route("https://www.googleapis.com/**", routeDrive);
+    await contextB.route("https://www.googleapis.com/**", (route) =>
+      routeDrive(route, !phoneCanSeeDrive),
+    );
     const phone = await contextB.newPage();
     await phone.goto(base);
     await phone.waitForFunction(() => ZM?.ready);
@@ -542,12 +553,15 @@ const server = http.createServer((req, res) => {
       await p.evaluate(() => {
         document.getElementById("driveClientId").value =
           "test.apps.googleusercontent.com";
+        window.__authRequests = 0;
         window.google = {
           accounts: {
             oauth2: {
               initTokenClient: (options) => ({
-                requestAccessToken: () =>
-                  options.callback({ access_token: "test-only" }),
+                requestAccessToken: () => {
+                  window.__authRequests++;
+                  options.callback({ access_token: "test-only" });
+                },
               }),
             },
           },
@@ -560,6 +574,16 @@ const server = http.createServer((req, res) => {
       "An empty new device must not upload over Drive",
     );
     await page.evaluate(() => ZM.sync.sync());
+    assert.equal(drive.length, 0, "First-device setup must be explicit");
+    assert.match(
+      await page.locator("#syncState").textContent(),
+      /no Drive history visible/,
+    );
+    await page.evaluate(() => ZM.navigate("settings"));
+    await page.locator("#startDriveHistoryBtn").click();
+    await page.waitForFunction(() =>
+      document.getElementById("syncState").textContent.startsWith("Synced"),
+    );
     await phone.evaluate(() => ZM.sync.sync());
     assert.equal(await phone.evaluate(() => ZM.data.meetings.length), 2);
     assert.equal(
@@ -628,7 +652,29 @@ const server = http.createServer((req, res) => {
       });
       return id;
     });
+    withholdNewUploads = true;
     await phone.evaluate(() => ZM.sync.sync());
+    assert.ok(
+      await phone.evaluate(
+        async (id) =>
+          (await ZMinutesStore.pending()).some((op) => op.entityId === id),
+        phoneMeetingId,
+      ),
+      "An unlisted upload must remain pending",
+    );
+    assert.match(
+      await phone.locator("#syncState").textContent(),
+      /needs attention/,
+    );
+    withholdNewUploads = false;
+    withheldUploadIds.clear();
+    const uploadsBeforeRetry = drive.length;
+    await phone.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      drive.length,
+      uploadsBeforeRetry,
+      "Retry must reuse the verified change file",
+    );
     assert.equal(
       await phone.evaluate(
         (id) => ZM.data.meetings.find((m) => m.id === id)?.note,
@@ -652,6 +698,13 @@ const server = http.createServer((req, res) => {
       ),
       "Phone answer",
     );
+    phoneCanSeeDrive = false;
+    await phone.evaluate(() => ZM.sync.sync());
+    assert.match(
+      await phone.locator("#syncState").textContent(),
+      /no Drive history visible/,
+    );
+    phoneCanSeeDrive = true;
     legacyFiles.push({
       id: "legacy-snapshot",
       name: "zminutes-sync.json",
@@ -688,12 +741,37 @@ const server = http.createServer((req, res) => {
     );
     assert.match(
       await phone.locator("#syncState").textContent(),
-      /Sync paused · old Drive copy/,
+      /Sync paused · old Drive snapshot found/,
+    );
+    await phone.evaluate(() => ZM.navigate("settings"));
+    await phone.locator("#scanDriveHistoryBtn").click();
+    await phone.getByText("Current Drive copy").waitFor();
+    await phone.locator("[data-preview-version='0']").click();
+    await phone.waitForFunction(() =>
+      document
+        .getElementById("dataRecoveryList")
+        .textContent.includes("Stale PC copy"),
     );
     drive.push(...activeFiles);
     legacyFiles.length = 0;
+    const authBeforeClientChange = await page.evaluate(() => __authRequests);
+    await page.evaluate(() => {
+      document.getElementById("driveClientId").value =
+        "new-client.apps.googleusercontent.com";
+      document.getElementById("saveDriveClientBtn").click();
+    });
+    await page.waitForFunction(() =>
+      document
+        .getElementById("syncState")
+        .textContent.includes("Ready · tap Sync now"),
+    );
+    await page.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      await page.evaluate(() => __authRequests),
+      authBeforeClientChange + 1,
+    );
     console.log(
-      "PASS: two-device sync, fresh phone meeting, conflicts, and legacy-snapshot safety",
+      "PASS: two-device sync, fresh phone meeting, upload verification, changed Client ID, and legacy safety",
     );
     await page.evaluate(async () => {
       const calendar = [

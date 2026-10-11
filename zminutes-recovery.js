@@ -101,6 +101,11 @@
     );
     versions = [];
     for (const file of files) {
+      versions.push({
+        fileId: file.id,
+        revisionId: null,
+        modifiedTime: file.modifiedTime,
+      });
       let page = "";
       do {
         const data = await A.sync.api(
@@ -129,7 +134,7 @@
     $("dataRecoveryList").innerHTML = versions
       .map(
         (v, i) =>
-          `<div class="file-row"><span>Drive copy · ${A.esc(new Date(v.modifiedTime).toLocaleString())}</span><button class="secondary" data-preview-version="${i}">Preview</button></div>`,
+          `<div class="file-row"><span>${v.revisionId ? "Drive revision" : "Current Drive copy"} · ${A.esc(new Date(v.modifiedTime).toLocaleString())}</span><button class="secondary" data-preview-version="${i}">Preview</button></div>`,
       )
       .join("");
     report(
@@ -150,8 +155,9 @@
         const raw = await A.sync.api(
           "drive/v3/files/" +
             encodeURIComponent(v.fileId) +
-            "/revisions/" +
-            encodeURIComponent(v.revisionId) +
+            (v.revisionId
+              ? "/revisions/" + encodeURIComponent(v.revisionId)
+              : "") +
             "?alt=media",
         );
         showPreview(raw, new Date(v.modifiedTime).toLocaleString());

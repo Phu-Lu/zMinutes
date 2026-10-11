@@ -26,7 +26,7 @@ Then open <http://127.0.0.1:4174/>. Use a secure origin (HTTPS or localhost) for
 
 Version 2 uses one IndexedDB repository for records, media, recording checkpoints, and a durable sync outbox. Existing records are migrated once; the original legacy stores are left intact. A failed save is shown explicitly instead of silently falling back to a second database. Export a backup before clearing browser data or switching devices.
 
-Drive sync uploads immutable changes only when you tap **Sync now**. A newly connected empty device will not upload its empty workspace when Drive contains no data. Concurrent edits are retained for resolution in Settings rather than silently overwriting each other. Deletions propagate as tombstones. Photos sync; audio, imported/exported packages, and API keys remain local. Local audio is preserved when receiving a remote meeting update. Backups include audio and attachments; restore validates and commits atomically. The original v1 Drive snapshot is not deleted. If data went missing, use **Settings → Recover missing data** to inspect local history or old Drive snapshot versions, download a copy, then add only missing records. Recovery does not replace current records. Update both devices before resuming sync.
+Drive sync uploads immutable changes only when you tap **Sync now**. A newly connected empty device will not upload its empty workspace when Drive contains no data. If a device has work but cannot see an existing Drive change history, sync pauses: verify the Google account and Client ID, then use **Start new Drive history** only for the intended first device. Uploads are read back and confirmed visible in Drive before local changes are acknowledged; an uncertain upload stays pending and can be retried. Concurrent edits are retained for resolution in Settings rather than silently overwriting each other. Deletions propagate as tombstones. Photos sync; audio, imported/exported packages, and API keys remain local. Local audio is preserved when receiving a remote meeting update. Backups include audio and attachments; restore validates and commits atomically. The original v1 Drive snapshot is not deleted or silently mixed into v2 changes. If data went missing, use **Settings → Recover missing data** to inspect local history or old Drive snapshot versions, download a copy, then add only missing records. Recovery does not replace current records. Update both devices before resuming sync.
 
 ## Recording and AI
 
@@ -42,7 +42,7 @@ Calendar accepts an `.ics` file exported from Google Calendar, Outlook, or anoth
 
 ## Updates and development checks
 
-This release is **2.0 / build 25** (visible in Settings). Gemini transcription uses the selected Gemini recap model by default; Settings also allows a separate transcription model. Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
+This release is **2.0 / build 26** (visible in Settings). Gemini transcription uses the selected Gemini recap model by default; Settings also allows a separate transcription model. Use Settings → Check for updates, then reload after saving. Updates never force a reload during recording. Installation is performed by the browser: accepting a prompt is not proof that Android has finished installing the app.
 
 ```powershell
 npm ci

@@ -147,6 +147,44 @@ test("concurrent remote change cannot silently hide this device's meeting", asyn
   assert.equal(meeting.note, "Unsynced field notes");
   assert.equal(M.reduce(await S.all("journal")).conflicts.length, 1);
 });
+test("legacy records mistakenly marked uploaded are queued once for v2 publishing", async () => {
+  const { store: S } = repository();
+  await S.init();
+  await S.merge([
+    {
+      app: "zMinutes",
+      format: "changes-v2",
+      ops: [change("legacy-old-file-meeting", [], "Migrated meeting")],
+      media: {},
+    },
+  ]);
+  assert.equal(await S.republishLegacy(), 1);
+  assert.equal(
+    (await S.pending()).filter((op) => op.id.startsWith("legacy-")).length,
+    1,
+  );
+  assert.equal(await S.republishLegacy(), 0);
+  await S.acknowledge(["legacy-old-file-meeting"]);
+  assert.equal(await S.republishLegacy(), 0);
+});
+test("a meeting remains visible when its project disappears", async () => {
+  const { store: S } = repository();
+  await S.init();
+  await S.put("projects", { id: "site", name: "Site" });
+  await S.put("meetings", {
+    id: "meeting",
+    projectId: "site",
+    title: "Keep visible",
+  });
+  await S.remove("projects", "site");
+  const snapshot = await S.snapshot();
+  assert.equal(snapshot.meetings[0].projectId, "inbox");
+  assert.equal(snapshot.meetings[0].title, "Keep visible");
+  assert.equal(
+    (await S.get("entities", "meetings:meeting")).value.projectId,
+    "site",
+  );
+});
 test("multiple recordings survive backup/restore; missing-only recovery does not overwrite", async () => {
   const { store: S } = repository();
   await S.init();

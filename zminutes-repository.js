@@ -207,6 +207,10 @@
       if (r.value) data[r.kind].push(r.value);
     if (!data.projects.some((p) => p.id === "inbox"))
       data.projects.unshift(M.inbox());
+    const projectIds = new Set(data.projects.map((p) => p.id));
+    for (const kind of M.kinds.filter((item) => item !== "projects"))
+      for (const record of data[kind])
+        if (!projectIds.has(record.projectId)) record.projectId = "inbox";
     return data;
   }
   async function put(kind, value, parents) {
@@ -419,6 +423,20 @@
       });
     });
   }
+  async function republishLegacy() {
+    return serial(async () => {
+      if (await get("meta", "legacy-republished-v2")) return 0;
+      const legacy = (await all("journal")).filter(
+        (op) => op.id.startsWith("legacy-") && op.uploaded,
+      );
+      await transaction(["journal", "meta"], (tx) => {
+        for (const op of legacy)
+          tx.objectStore("journal").put({ ...op, uploaded: false }, op.id);
+        tx.objectStore("meta").put(true, "legacy-republished-v2");
+      });
+      return legacy.length;
+    });
+  }
   async function merge(bundles) {
     const media = [];
     for (const b of bundles) {
@@ -521,6 +539,7 @@
     pending,
     bundle,
     acknowledge,
+    republishLegacy,
     merge,
     get,
     all,
