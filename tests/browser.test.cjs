@@ -436,6 +436,16 @@ const server = http.createServer((req, res) => {
     console.log(
       "PASS: multi-clip transcript, custom recap, Gemini and OpenAI grounded solutions",
     );
+    const rawDownload = page.waitForEvent("download");
+    await page.locator("#packageBtn").click();
+    const raw = await rawDownload,
+      rawMeeting = JSON.parse(fs.readFileSync(await raw.path(), "utf8"));
+    assert.equal(await page.locator("#packageBtn").textContent(), "↓ Raw Data");
+    assert.match(rawMeeting.note, /Nội dung tiếng Việt/);
+    assert.equal(rawMeeting.photos.length, 1);
+    assert.ok(
+      rawMeeting.recordings.some((r) => r.data?.startsWith("data:audio/")),
+    );
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#docBtn").click();
     const doc = await downloadPromise,
@@ -443,11 +453,55 @@ const server = http.createServer((req, res) => {
     await doc.saveAs(path.join(root, "test-results", "meeting.docx"));
     assert.ok(doc.suggestedFilename().endsWith(".docx"));
     assert.equal(bytes.subarray(0, 2).toString(), "PK");
-    assert.ok(bytes.includes(Buffer.from("Nội dung tiếng Việt")));
+    assert.ok(bytes.includes(Buffer.from("Custom recap")));
+    assert.ok(bytes.includes(Buffer.from("phased rollout")));
+    assert.equal(bytes.includes(Buffer.from("Nội dung tiếng Việt")), false);
+    assert.equal(bytes.includes(Buffer.from("word/media/")), false);
+    const sharedBlocks = await page.evaluate(() =>
+      ZM.exports
+        .blocks(ZM.current())
+        .map((block) => block.title)
+        .join("\n"),
+    );
+    assert.match(sharedBlocks, /Custom recap[\s\S]*phased rollout/);
+    assert.match(sharedBlocks, /https:\/\/example\.org\/evidence/);
+    assert.doesNotMatch(
+      sharedBlocks,
+      /Nội dung tiếng Việt|First clip transcript/,
+    );
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: async (payload) => {
+          window.lastShare = payload;
+        },
+      });
+    });
+    await page.locator("#shareBtn").click();
+    await page.waitForFunction(() => window.lastShare?.text);
+    assert.equal(
+      await page.evaluate(() => window.lastShare.text),
+      await page.evaluate(() => ZM.exports.sharingText(ZM.current())),
+    );
+    assert.match(
+      await page.evaluate(() => {
+        try {
+          ZM.exports.blocks({ ...ZM.current(), summary: "", solutions: "" });
+        } catch (error) {
+          return error.message;
+        }
+      }),
+      /Generate a recap or suggested solutions/,
+    );
     assert.ok(bytes.includes(Buffer.from("word/document.xml")));
     await page.evaluate(() => (window.print = () => {}));
     await page.locator("#pdfBtn").click();
     await page.waitForSelector(".print-document", { state: "attached" });
+    const printed = await page.locator(".print-document").textContent();
+    assert.match(printed, /Custom recap/);
+    assert.match(printed, /phased rollout/);
+    assert.doesNotMatch(printed, /Nội dung tiếng Việt/);
+    assert.equal(await page.locator(".print-document img").count(), 0);
     await page.emulateMedia({ media: "print" });
     assert.equal(await page.locator("#settingsView").isVisible(), false);
     assert.ok(await page.locator(".print-document").isVisible());
@@ -457,6 +511,158 @@ const server = http.createServer((req, res) => {
     });
     await page.emulateMedia({ media: "screen" });
     console.log("PASS: Vietnamese DOCX and isolated print document");
+    await page.evaluate(async (meetingId) => {
+      await ZM.updateMeeting(meetingId, {
+        transcript: "Transcript already saved in an older meeting.",
+        summary: "<p>Earlier recap remains available.</p>",
+        summaryType: "existing",
+      });
+    }, other);
+    await page.reload();
+    await page.waitForFunction(() => ZM?.ready);
+    await page.evaluate((meetingId) => ZM.open(meetingId, "note"), other);
+    await page.evaluate(() => {
+      document.getElementById("aiProvider").value = "gemini";
+      document.getElementById("aiModel").value = "gemini-3.5-flash";
+      document.getElementById("aiApiKey").value = "test-only";
+    });
+    let releaseLegacy, legacyRequest, legacyStartedResolve;
+    const legacyStarted = new Promise((resolve) => {
+      legacyStartedResolve = resolve;
+    });
+    await page.route(
+      "https://generativelanguage.googleapis.com/**",
+      async (route) => {
+        legacyRequest = route.request().postDataJSON();
+        await new Promise((release) => {
+          releaseLegacy = release;
+          legacyStartedResolve();
+        });
+        await route.fulfill({
+          json: {
+            candidates: [
+              { content: { parts: [{ text: "<p>Recap of old data.</p>" }] } },
+            ],
+          },
+        });
+      },
+    );
+    await page.locator("#transcriptRecapBtn").click();
+    await legacyStarted;
+    assert.equal(await page.locator("#summaryPanel").isVisible(), true);
+    assert.match(
+      await page.locator("#recapStatus").textContent(),
+      /Generating recap/,
+    );
+    assert.match(
+      legacyRequest.contents[0].parts[0].text,
+      /Transcript already saved/,
+    );
+    releaseLegacy();
+    await page.waitForFunction(
+      () =>
+        document.getElementById("recapStatus").textContent === "Recap saved.",
+    );
+    assert.match(
+      await page.locator("#summaryOutput").textContent(),
+      /Recap of old data/,
+    );
+    assert.ok(
+      await page
+        .locator("#summaryOutput")
+        .evaluate((node) => node.getBoundingClientRect().height < 240),
+    );
+    await page.locator("#solutionPromptInput").fill("Short question");
+    const shortPromptHeight = await page
+      .locator("#solutionPromptInput")
+      .evaluate((node) => node.getBoundingClientRect().height);
+    await page
+      .locator("#solutionPromptInput")
+      .fill("Long question\n".repeat(20));
+    const longPromptHeight = await page
+      .locator("#solutionPromptInput")
+      .evaluate((node) => node.getBoundingClientRect().height);
+    assert.ok(shortPromptHeight < longPromptHeight && longPromptHeight <= 362);
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    await page.route("https://generativelanguage.googleapis.com/**", (route) =>
+      route.fulfill({
+        status: 429,
+        json: { error: { message: "Quota exceeded" } },
+      }),
+    );
+    await page.locator("#generateSummaryBtn").click();
+    await page.waitForFunction(() =>
+      document
+        .getElementById("recapStatus")
+        .textContent.includes("Quota exceeded"),
+    );
+    assert.match(
+      await page.locator("#summaryOutput").textContent(),
+      /Recap of old data/,
+    );
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    await page.evaluate(() => {
+      document.getElementById("aiProvider").value = "quick";
+    });
+    await page.locator("#generateSummaryBtn").click();
+    await page.waitForFunction(() => ZM.current().summaryType === "quick");
+    await page.waitForFunction(() =>
+      document
+        .getElementById("summaryOutput")
+        .textContent.includes("Transcript already saved"),
+    );
+    assert.match(
+      await page.locator("#summaryOutput").textContent(),
+      /Transcript already saved/,
+    );
+    assert.equal(await page.locator("#summaryOutput.empty").count(), 0);
+    console.log(
+      "PASS: persisted meeting recap, visible progress and failure recovery",
+    );
+    await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
+    const clipToDelete = await page.evaluate(() => ZM.current().recordings[0]);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator(`[data-delete-recording="${clipToDelete.id}"]`).click();
+    await page.waitForFunction(
+      (clipId) => !ZM.current().recordings.some((r) => r.id === clipId),
+      clipToDelete.id,
+    );
+    await page.waitForFunction(
+      async (audioId) => !(await ZMinutesStore.get("media", audioId)),
+      clipToDelete.audioId,
+    );
+    assert.equal(
+      await page.evaluate(
+        (audioId) => ZMinutesStore.get("media", audioId),
+        clipToDelete.audioId,
+      ),
+      undefined,
+    );
+    assert.match(
+      await page.evaluate(() => ZMinutesModel.fullTranscript(ZM.current())),
+      /First clip transcript[\s\S]*Transcript for original meeting/,
+    );
+    await page.reload();
+    await page.waitForFunction(() => ZM?.ready);
+    await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
+    assert.equal(await page.locator("#recordingList .file-row").count(), 1);
+    assert.match(
+      await page.evaluate(() => ZMinutesModel.fullTranscript(ZM.current())),
+      /First clip transcript[\s\S]*Transcript for original meeting/,
+    );
+    console.log(
+      "PASS: audio deletion persists while transcripts remain ordered",
+    );
+    await page.evaluate(() => ZM.navigate("overview"));
+    assert.deepEqual(
+      await page.locator("#overviewView .ov-grid h2").allTextContents(),
+      ["Tasks", "Recent", "Latest field photos"],
+    );
+    await page.evaluate(() => ZM.navigate("meetings"));
+    assert.equal(
+      await page.locator("#homeView .section-head h2").textContent(),
+      "My meetings",
+    );
     for (const width of [360, 412, 800, 1024, 1366]) {
       await page.setViewportSize({ width, height: 900 });
       for (const section of [
@@ -471,7 +677,39 @@ const server = http.createServer((req, res) => {
           () => document.documentElement.scrollWidth > innerWidth + 2,
         );
         assert.equal(overflow, false, section + " overflow at " + width);
+        if (section === "overview") {
+          const cards = await page
+            .locator("#overviewView .ov-grid .ov-card")
+            .evaluateAll((nodes) =>
+              nodes.map((node) => {
+                const box = node.getBoundingClientRect();
+                return { top: box.top, bottom: box.bottom, left: box.left };
+              }),
+            );
+          assert.ok(
+            cards[0].bottom <= cards[1].top,
+            "Tasks must precede Recent at " + width,
+          );
+          if (width < 1100)
+            assert.ok(
+              cards[1].bottom <= cards[2].top,
+              "Photos must follow Recent at " + width,
+            );
+          else
+            assert.ok(
+              cards[2].left > cards[0].left,
+              "Photos must occupy the right column",
+            );
+        }
       }
+      await page.evaluate((meetingId) => ZM.open(meetingId, "summary"), id);
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth > innerWidth + 2,
+        ),
+        false,
+        "recap overflow at " + width,
+      );
       if (width === 360)
         await page.screenshot({
           path: path.join(root, "test-results", "phone.png"),

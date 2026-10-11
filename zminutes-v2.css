@@ -216,14 +216,83 @@ textarea {
     max-width: 100%;
   }
 }
-.recording-list { display: grid; gap: 8px; margin: 12px 0 18px; }
-.recording-list .file-row { flex-wrap: wrap; gap: 8px; }
-.recording-list .file-row.selected { border-color: #0078d4; background: #edf6ff; }
-.transcript-combined { max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: #f6faff; padding: 12px; border-radius: 9px; }
-.prompt-input { min-height: 100px; width: 100%; margin-top: 8px; }
-.solution-panel { margin-top: 24px; padding-top: 18px; border-top: 1px solid #d9e2ef; }
-.solution-panel label { display: block; margin-top: 12px; }
-#solutionSources a { overflow-wrap: anywhere; }
+.recording-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+.recording-list .file-row {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.recording-list .file-row.selected {
+  border-color: #0078d4;
+  background: #edf6ff;
+}
+.transcript-combined {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  background: #f6faff;
+  padding: 12px;
+  border-radius: 9px;
+}
+.prompt-input {
+  min-height: 68px;
+  max-height: min(40vh, 360px);
+  width: 100%;
+  margin-top: 8px;
+  overflow-y: auto;
+  resize: vertical;
+}
+.summary-output {
+  min-height: 0;
+  overflow-wrap: anywhere;
+}
+.summary-output.empty {
+  display: block;
+  color: var(--muted);
+}
+.summary-output.empty p {
+  margin: 0;
+}
+.recap-status {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: #eaf5ff;
+  color: #07558b;
+}
+.recap-status[data-state="error"] {
+  background: #fff0ef;
+  color: #9c251c;
+}
+.recap-status[data-state="success"] {
+  background: #e5f5eb;
+  color: #17643b;
+}
+.recording-list .mini-delete {
+  min-height: 36px;
+  min-width: 64px;
+  color: #a62d32;
+}
+.ov-col.side {
+  grid-template-columns: minmax(0, 1fr);
+}
+.solution-panel {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #d9e2ef;
+}
+.solution-panel label {
+  display: block;
+  margin-top: 12px;
+}
+#solutionSources a {
+  overflow-wrap: anywhere;
+}
 @media print {
   body > * {
     display: none !important;

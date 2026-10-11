@@ -272,6 +272,24 @@
     );
     return item.id;
   }
+  async function removeMediaIfUnreferenced(id) {
+    if (!id) return false;
+    return serial(async () => {
+      const linked = (await all("entities")).some(({ value }) => {
+        if (!value) return false;
+        if (value.audioId === id || value.mediaId === id) return true;
+        if (value.recordings?.some((r) => r.audioId === id)) return true;
+        return value.photos?.some((p) => p.mediaId === id) || false;
+      });
+      if (linked) return false;
+      await transaction(["media"], (tx) => tx.objectStore("media").delete(id));
+      if (urls.has(id)) {
+        URL.revokeObjectURL(urls.get(id));
+        urls.delete(id);
+      }
+      return true;
+    });
+  }
   async function mediaURL(id) {
     if (!id) return "";
     if (urls.has(id)) return urls.get(id);
@@ -532,6 +550,7 @@
     put,
     remove,
     addMedia,
+    removeMediaIfUnreferenced,
     mediaURL,
     portable,
     restore,

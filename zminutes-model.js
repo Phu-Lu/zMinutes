@@ -42,6 +42,7 @@
           recordingId: text(s.recordingId),
           createdAt: Number(s.createdAt) || 0,
           text: text(s.text),
+          ...(Number.isFinite(s.order) ? { order: s.order } : {}),
         })),
         summary: text(raw.summary),
         summaryType: text(raw.summaryType) || (raw.summary ? "existing" : ""),
@@ -136,26 +137,33 @@
     return copy;
   }
   const key = (kind, id) => kind + ":" + id;
+  const orderedSegments = (meeting) =>
+    list(meeting.transcriptSegments)
+      .slice()
+      .sort((a, b) => {
+        if (Number.isFinite(a.order) || Number.isFinite(b.order))
+          return (
+            (Number.isFinite(a.order) ? a.order : Infinity) -
+              (Number.isFinite(b.order) ? b.order : Infinity) ||
+            (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0)
+          );
+        const recordings = list(meeting.recordings);
+        const ai = recordings.findIndex((item) => item.id === a.recordingId);
+        const bi = recordings.findIndex((item) => item.id === b.recordingId);
+        return (
+          (ai < 0 ? Infinity : ai) - (bi < 0 ? Infinity : bi) ||
+          (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0)
+        );
+      });
   const fullTranscript = (meeting) =>
     [
       text(meeting.transcript),
-      ...list(meeting.transcriptSegments)
-        .slice()
-        .sort((a, b) => {
-          const recordings = list(meeting.recordings);
-          const ai = recordings.findIndex((item) => item.id === a.recordingId);
-          const bi = recordings.findIndex((item) => item.id === b.recordingId);
-          return (
-            (ai < 0 ? Infinity : ai) - (bi < 0 ? Infinity : bi) ||
-            (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0)
-          );
-        })
-        .map((segment, i) => {
-          const recording = list(meeting.recordings).find(
-            (item) => item.id === segment.recordingId,
-          );
-          return `${recording?.label || "Recording " + (i + 1)}:\n${text(segment.text)}`;
-        }),
+      ...orderedSegments(meeting).map((segment, i) => {
+        const recording = list(meeting.recordings).find(
+          (item) => item.id === segment.recordingId,
+        );
+        return `${recording?.label || "Recording " + (i + 1)}:\n${text(segment.text)}`;
+      }),
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -275,6 +283,7 @@
     normalize,
     publicValue,
     key,
+    orderedSegments,
     fullTranscript,
     reduce,
     validateBackup,

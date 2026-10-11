@@ -243,6 +243,50 @@ test("multiple recordings survive backup/restore; missing-only recovery does not
     "Recovered",
   );
 });
+test("deleted audio stays gone without removing or reordering transcript", async () => {
+  const { store: S } = repository();
+  await S.init();
+  const first = await S.addMedia(
+      new Blob(["first"], { type: "audio/wav" }),
+      "first.wav",
+    ),
+    second = await S.addMedia(
+      new Blob(["second"], { type: "audio/wav" }),
+      "second.wav",
+    );
+  await S.put("meetings", {
+    id: "meeting",
+    audioId: second,
+    recordings: [
+      { id: "clip-1", audioId: first, label: "First" },
+      { id: "clip-2", audioId: second, label: "Second" },
+    ],
+    transcriptSegments: [
+      { id: "segment-2", recordingId: "clip-2", text: "Second words" },
+      { id: "segment-1", recordingId: "clip-1", text: "First words" },
+    ],
+  });
+  assert.equal(await S.removeMediaIfUnreferenced(first), false);
+  const before = (await S.snapshot()).meetings[0],
+    order = new Map(M.orderedSegments(before).map((s, i) => [s.id, i]));
+  await S.put("meetings", {
+    ...before,
+    recordings: before.recordings.slice(1),
+    audioId: second,
+    transcriptSegments: before.transcriptSegments.map((s) => ({
+      ...s,
+      order: order.get(s.id),
+    })),
+  });
+  assert.equal(await S.removeMediaIfUnreferenced(first), true);
+  assert.equal(await S.get("media", first), undefined);
+  const remaining = (await S.snapshot()).meetings[0];
+  assert.match(M.fullTranscript(remaining), /First words[\s\S]*Second words/);
+  await S.put("meetings", { ...remaining, recordings: [], audioId: "" });
+  assert.equal(await S.removeMediaIfUnreferenced(second), true);
+  assert.equal((await S.snapshot()).meetings[0].recordings.length, 0);
+  assert.equal((await S.snapshot()).meetings[0].audioId, "");
+});
 test("invalid restore leaves all records unchanged", async () => {
   const { store: S } = repository();
   await S.init();

@@ -318,10 +318,48 @@
       const id =
         button.dataset.selectRecording ||
         button.dataset.transcribeRecording ||
-        button.dataset.downloadRecording;
+        button.dataset.downloadRecording ||
+        button.dataset.deleteRecording;
       const m = A.current(),
-        recording = m?.recordings.find((r) => r.id === id),
-        item = await S.get("media", recording?.audioId);
+        recording = m?.recordings.find((r) => r.id === id);
+      if (button.dataset.deleteRecording) {
+        if (!recording) throw new Error("Recording not found.");
+        if (A.aiBusy)
+          throw new Error(
+            "Finish or cancel the current AI request before deleting audio.",
+          );
+        if (
+          !confirm(
+            "Delete this audio file from this device? Its transcript, recap, and solutions will stay.",
+          )
+        )
+          return;
+        const remaining = m.recordings.filter((r) => r.id !== id),
+          order = new Map(
+            ZMinutesModel.orderedSegments(m).map((segment, index) => [
+              segment.id,
+              index,
+            ]),
+          ),
+          audio = $("audioPlayback");
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.dataset.media = "";
+        audio.load();
+        A.selectedRecordingId = remaining.at(-1)?.id || null;
+        await A.updateMeeting(m.id, {
+          recordings: remaining,
+          audioId: remaining.at(-1)?.audioId || "",
+          transcriptSegments: m.transcriptSegments.map((segment) => ({
+            ...segment,
+            order: order.get(segment.id),
+          })),
+        });
+        await S.removeMediaIfUnreferenced(recording.audioId);
+        A.notice("Recording deleted. Transcript and recap were kept.");
+        return;
+      }
+      const item = await S.get("media", recording?.audioId);
       if (!recording || !item)
         throw new Error("This recording is not available on this device.");
       A.selectedRecordingId = id;

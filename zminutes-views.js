@@ -101,7 +101,15 @@
     const stat = (color, icon, title, count, sub, go) =>
       `<button class="stat ${color}" data-go="${go}"><span class="stat-ic">${icon}</span><span><span class="stat-label">${title}</span><br><span class="stat-num">${count}</span><br><span class="stat-sub">${sub}</span></span></button>`;
     $("overviewView").innerHTML =
-      `<div class="ov-head"><span class="ov-icon">▱</span><div><h1>${e(project().name)}</h1><p>Meetings, tasks and field notes in one place.</p><button class="link-btn" id="renameProject">Rename project</button>${A.project !== "inbox" ? '<button class="link-btn" id="deleteProject">Delete project</button>' : ""}</div></div><div class="ov-stats">${stat("blue", "▣", "Meetings", ms.length, "Total project meetings", "meetings")}${stat("amber", "✓", "Open actions", open.length, ts.length - open.length + " completed", "tasks")}${stat("green", "▧", "Field photos", photos.length, "Meeting and field-note photos", "field")}</div><div class="ov-grid"><section class="ov-card"><div class="ov-card-head"><h2>Recent meetings</h2><button class="link-btn" data-go="meetings">View all →</button></div>${
+      `<div class="ov-head"><span class="ov-icon">▱</span><div><h1>${e(project().name)}</h1><p>Meetings, tasks and field notes in one place.</p><button class="link-btn" id="renameProject">Rename project</button>${A.project !== "inbox" ? '<button class="link-btn" id="deleteProject">Delete project</button>' : ""}</div></div><div class="ov-stats">${stat("blue", "▣", "Meetings", ms.length, "Total project meetings", "meetings")}${stat("amber", "✓", "Open actions", open.length, ts.length - open.length + " completed", "tasks")}${stat("green", "▧", "Field photos", photos.length, "Meeting and field-note photos", "field")}</div><div class="ov-grid"><div class="ov-col main"><section class="ov-card"><h2>Tasks</h2>${
+        open
+          .slice(0, 5)
+          .map(
+            (t) =>
+              `<label class="act"><input type="checkbox" data-task-status="${e(t.id)}"><span>${e(t.title)}<small>${e(t.due || "No due date")}</small></span></label>`,
+          )
+          .join("") || empty("No open tasks.")
+      }<button class="link-btn" data-go="tasks">View tasks →</button></section><section class="ov-card"><div class="ov-card-head"><h2>Recent</h2><button class="link-btn" data-go="meetings">View all →</button></div>${
         ms
           .slice(0, 5)
           .map(
@@ -109,15 +117,7 @@
               `<button class="calendar-entry" data-open="${e(m.id)}"><span>${e(date(m.date))}</span><strong>${e(m.title || "Untitled meeting")}</strong><small>${m.summary ? "Recap ready" : "No recap"}</small></button>`,
           )
           .join("") || empty("No meetings yet.")
-      }<button class="primary" data-new>+ New meeting</button></section><div class="ov-col side"><section class="ov-card"><h2>Next actions</h2>${
-        open
-          .slice(0, 5)
-          .map(
-            (t) =>
-              `<label class="act"><input type="checkbox" data-task-status="${e(t.id)}"><span>${e(t.title)}<small>${e(t.due || "No due date")}</small></span></label>`,
-          )
-          .join("") || empty("No open action items.")
-      }<button class="link-btn" data-go="tasks">View tasks →</button></section><section class="ov-card"><h2>Latest field photos</h2><div class="shots">${photos
+      }<button class="primary" data-new>+ New meeting</button></section></div><div class="ov-col side"><section class="ov-card"><h2>Latest field photos</h2><div class="shots">${photos
         .slice(0, 3)
         .map(
           (p) =>
@@ -183,9 +183,29 @@
         )
         .join("") || empty("No matching meetings.");
   };
+  A.resizePrompts = () => {
+    if (A.tab !== "summary") return;
+    for (const id of ["summaryPromptInput", "solutionPromptInput"]) {
+      const input = $(id);
+      input.style.height = "auto";
+      input.style.height =
+        Math.min(
+          Math.max(input.scrollHeight + 2, 68),
+          Math.min(innerHeight * 0.4, 360),
+        ) + "px";
+    }
+  };
+  $("summaryPromptInput")
+    .closest("details")
+    .addEventListener("toggle", () => A.resizePrompts());
+  window.addEventListener("resize", () => A.resizePrompts());
   A.renderEditor = (full = true) => {
     const m = A.current();
     if (!m) return;
+    if (full && (!A.aiBusy || A.recapStatusMeetingId !== m.id)) {
+      $("recapStatus").hidden = true;
+      $("recapStatus").textContent = "";
+    }
     if (full) {
       $("titleInput").value = m.title;
       $("dateInput").value = m.date;
@@ -233,6 +253,7 @@
     $("summaryOutput").innerHTML = m.summary
       ? A.sanitize(m.summary)
       : "<p>No recap yet. Generate one when the meeting ends.</p>";
+    $("summaryOutput").classList.toggle("empty", !m.summary);
     $("recapKind").textContent =
       m.summaryType === "quick"
         ? "Offline draft · not an AI model"
@@ -248,6 +269,7 @@
     $("solutionOutput").innerHTML = m.solutions
       ? A.sanitize(m.solutions)
       : "<p>No suggested solutions yet.</p>";
+    $("solutionOutput").classList.toggle("empty", !m.solutions);
     $("solutionSources").innerHTML = m.solutionSources
       .filter((s) => /^https?:\/\//i.test(s.url))
       .map(
@@ -263,7 +285,7 @@
         const transcribed = m.transcriptSegments.some(
           (segment) => segment.recordingId === r.id,
         );
-        return `<div class="file-row ${A.selectedRecordingId === r.id ? "selected" : ""}"><span>${e(r.label || "Recording " + (i + 1))} · ${e(r.createdAt ? new Date(r.createdAt).toLocaleString() : "Saved audio")} · ${transcribed ? "Transcribed" : "Not transcribed"}</span><button class="secondary" data-select-recording="${e(r.id)}">Play</button><button class="secondary" data-transcribe-recording="${e(r.id)}">Transcribe</button><button class="secondary" data-download-recording="${e(r.id)}">Download</button></div>`;
+        return `<div class="file-row ${A.selectedRecordingId === r.id ? "selected" : ""}"><span>${e(r.label || "Recording " + (i + 1))} · ${e(r.createdAt ? new Date(r.createdAt).toLocaleString() : "Saved audio")} · ${transcribed ? "Transcribed" : "Not transcribed"}</span><button class="secondary" data-select-recording="${e(r.id)}">Play</button><button class="secondary" data-transcribe-recording="${e(r.id)}">Transcribe</button><button class="secondary" data-download-recording="${e(r.id)}">Download</button><button class="mini-delete" data-delete-recording="${e(r.id)}" aria-label="Delete ${e(r.label || "recording")}">Delete</button></div>`;
       })
       .join("");
     const chosenRecording = recordings.find(
@@ -283,6 +305,7 @@
     }
     $("downloadAudioBtn").disabled = $("transcribeAgainBtn").disabled =
       !chosenRecording?.audioId;
+    A.resizePrompts();
     A.loadImages();
   };
   A.renderSection = () => {

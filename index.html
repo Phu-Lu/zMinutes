@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0078d4" />
   <meta name="description" content="A private, local-first meeting notebook." />
-  <link rel="manifest" href="manifest.webmanifest?v=26" />
+  <link rel="manifest" href="manifest.webmanifest?v=27" />
   <link rel="apple-touch-icon" href="zminutes-icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=26" />
-  <link rel="stylesheet" href="zminutes-v2.css?v=26" />
+  <link rel="stylesheet" href="styles.css?v=27" />
+  <link rel="stylesheet" href="zminutes-v2.css?v=27" />
   <style>
     :root { --ink:#1b1b1f; --muted:#5f636d; --paper:#f3f7fc; --card:#fff; --line:#d9e2ef; --brand:#0078d4; --lime:#d7efff; --danger:#d13438; }
     body { background:linear-gradient(130deg,#edf6ff 0,#f8fbff 42%,#f3f7fc 100%); }
@@ -21,12 +21,12 @@
     .meeting-card:hover { border-color:#9acbf0; box-shadow:0 10px 26px #42668b20; }.meeting-date,.badge { background:#e5f3ff; color:#0067b8; }
     .tabs { margin-top:8px; }.tab.active { color:#0067b8; border-color:#0078d4; }.section-head { margin-top:36px; }
     .panel { background:rgba(255,255,255,.63); border:1px solid #e1ebf4; border-radius:16px; margin-top:20px; padding:24px; max-width:none; box-shadow:0 6px 22px #42668b0d; }
-    .note-input { min-height:340px; }.transcript-card { background:linear-gradient(115deg,#103b61,#0b5d96); }.quick:hover,.secondary:hover { background:#e5f3ff;color:#0067b8; }
+    #noteInput { min-height:340px; }.transcript-card { background:linear-gradient(115deg,#103b61,#0b5d96); }.quick:hover,.secondary:hover { background:#e5f3ff;color:#0067b8; }
     @media (min-width:800px) { .meeting-header { padding:32px 10px 18px; }.title-input { font-size:34px; }.panel-intro { display:flex; align-items:center; justify-content:space-between; }.panel-intro:not(.split)::after { content:'PRIVATE ON THIS DEVICE'; font:10px ui-monospace,monospace; color:#0078d4; letter-spacing:1px; }.meeting-list { grid-template-columns:repeat(3,1fr); } }
     .agenda-tools{display:flex;align-items:center;gap:11px;margin:-4px 0 16px}.upload-list{border:1px solid #b8d7ef;background:#f3f9fe;color:#0067b8;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;cursor:pointer}.upload-list input{display:none}.agenda-tools small{color:var(--muted)}.agenda-item{align-items:flex-start;flex-wrap:wrap}.agenda-item>input{margin-top:3px}.agenda-item label{padding-top:1px}.agenda-note{margin:2px 27px 0 27px;flex-basis:calc(100% - 54px);border:1px solid #dbe5f0;border-radius:7px;padding:8px 9px;background:#f8fbfe;color:var(--ink);font:12px/1.45 system-ui;resize:vertical;min-height:36px}.agenda-note:focus{background:#fff;outline:2px solid #9dcef0;border-color:transparent}
     .ai-settings{margin:-4px 0 16px;border:1px solid #dbe5f0;border-radius:10px;background:#f8fbfe;padding:0 13px}.ai-settings summary{cursor:pointer;padding:11px 0;font-weight:700;color:#24516e}.ai-settings summary span{float:right;color:#0078d4;font-weight:500;font-size:12px}.ai-settings p{font-size:12px;color:var(--muted);line-height:1.5}.ai-setting-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ai-setting-grid label{display:grid;gap:5px;font-size:11px;font-weight:700;color:#5f636d}.ai-setting-grid input{border:1px solid #cadceb;border-radius:7px;padding:8px;font:13px system-ui;background:#fff;color:var(--ink)}
     .ai-settings-trigger{white-space:nowrap}
-    @media (min-width:600px) and (max-width:799px){.shell{padding:0 24px 45px}.hero{padding:46px 7%;margin-top:18px}.hero h1{font-size:46px}.meeting-list{grid-template-columns:repeat(2,1fr)}.panel{padding:20px}.note-input{min-height:300px}.tab{padding-left:13px;padding-right:13px}}
+    @media (min-width:600px) and (max-width:799px){.shell{padding:0 24px 45px}.hero{padding:46px 7%;margin-top:18px}.hero h1{font-size:46px}.meeting-list{grid-template-columns:repeat(2,1fr)}.panel{padding:20px}#noteInput{min-height:300px}.tab{padding-left:13px;padding-right:13px}}
     @media (max-width:599px){.topbar{padding:0 8px;border-radius:0;gap:8px}.top-left{flex:1 1 auto;min-width:0;gap:8px}.top-brand{display:flex;flex:none;white-space:nowrap;font-size:16px;gap:7px}.top-brand .brand-mark{width:32px;height:32px}.top-actions{flex:0 0 auto;gap:5px}.top-actions .ghost{display:none}.top-actions #installBtn:not(.hidden){display:inline-flex;width:38px;min-width:38px;justify-content:center;padding:8px}.settings-label,.install-label{display:none}.ai-settings-trigger{width:40px;min-width:40px;padding:8px;justify-content:center;font-size:14px}.primary#newMeetingBtn{padding:10px 11px;white-space:nowrap;font-size:12px}.panel{border-radius:12px;padding:16px;margin-top:13px}.agenda-tools{align-items:flex-start;flex-direction:column;gap:6px}.agenda-note{flex-basis:calc(100% - 28px);margin-left:27px}.ai-setting-grid{grid-template-columns:1fr}.export-row>*{flex:1 1 calc(50% - 6px)} }
     @media (max-width:380px){.primary#newMeetingBtn{width:40px;min-width:40px;justify-content:center;padding:8px}.primary#newMeetingBtn span{display:none}}
     @media (max-width:599px){.top-actions #installBtn:not(.hidden){width:44px;min-width:44px;min-height:44px;font-size:21px;padding:6px}}
@@ -75,8 +75,8 @@
 
     <section id="homeView" class="view hidden">
       <div id="meetingsHead"></div>
-      <div class="hero"><div><p class="eyebrow">LOCAL-FIRST · PC & ANDROID</p><h1>Your meetings.<br><em>Clearly captured.</em></h1><p class="muted">Agenda, notes, field photos, and meeting recaps — stored privately on your device.</p></div><button id="heroNewBtn" class="primary large">Start a meeting <span>→</span></button></div>
-      <div class="section-head"><div><h2>Your meetings</h2><p id="meetingCount" class="muted">No meetings yet</p></div><input id="searchInput" type="search" placeholder="Search meetings…" /></div>
+      <div class="hero"><div><p class="eyebrow">LOCAL-FIRST · PC & ANDROID</p><h1>My meetings.<br><em>Clearly captured.</em></h1><p class="muted">Agenda, notes, field photos, and meeting recaps — stored privately on your device.</p></div><button id="heroNewBtn" class="primary large">Start a meeting <span>→</span></button></div>
+      <div class="section-head"><div><h2>My meetings</h2><p id="meetingCount" class="muted">No meetings yet</p></div><input id="searchInput" type="search" placeholder="Search meetings…" /></div>
       <div id="meetingList" class="meeting-list"></div>
     </section>
 
@@ -93,7 +93,7 @@
       <div id="agendaPanel" class="panel hidden"><div class="panel-intro"><h2>Questions & agenda</h2><p>Prepare ahead of time, or add a question while you meet.</p></div><form id="agendaForm" class="add-row"><input id="agendaInput" placeholder="Example: Can we agree on the design deadline?" autocomplete="off"/><button class="primary" type="submit">Add</button></form><div class="agenda-tools"><label class="upload-list"><input id="agendaUpload" type="file" accept=".txt,.csv,text/plain,text/csv" />↑ Import question list</label><small>One question per line. Supports .txt and .csv.</small></div><div id="agendaList" class="check-list"></div></div>
       <div id="fieldPanel" class="panel hidden"><div class="panel-intro"><h2>Field notes</h2><p>Take a photo or attach one, then annotate it on the spot.</p></div><div class="photo-actions"><label class="photo-choice"><input id="photoCameraInput" type="file" accept="image/*" capture="environment" /><span class="camera-icon">⌁</span><strong>Take photo</strong><small>Open your camera</small></label><label class="photo-choice"><input id="photoInput" type="file" accept="image/*" multiple /><span class="camera-icon">▧</span><strong>Choose from device</strong><small>Upload saved images</small></label></div><div id="photoList" class="photo-grid"></div></div>
       <div id="stakeholdersPanel" class="panel hidden"><div class="panel-intro"><h2>Stakeholders</h2><p>Track who joined this meeting and their role.</p></div><form id="stakeholderForm" class="add-row"><input id="stakeholderName" required placeholder="Name" autocomplete="off"><input id="stakeholderRole" placeholder="Role / organization" autocomplete="off"><button class="primary" type="submit">Add person</button></form><div id="stakeholderList" class="stakeholder-list"></div></div>
-      <div id="summaryPanel" class="panel hidden"><div class="panel-intro split"><div><h2>Meeting recap</h2><p>Uses notes, agenda, tasks, people, and every transcript segment in this meeting.</p></div><button id="generateSummaryBtn" class="primary">✦ Generate recap</button></div><p class="settings-shortcut">AI provider and API keys are managed in <button type="button" id="manageAiBtn" class="text-button">Settings</button>.</p><label class="ai-consent meeting-ai-consent"><input id="meetingCloudAudioEnabled" type="checkbox"> Allow cloud transcription for this meeting's recordings</label><details><summary>Customize recap prompt</summary><textarea id="summaryPromptInput" class="note-input prompt-input" placeholder="Leave blank for the default recap prompt"></textarea><p>Saved for this meeting. The meeting data is added automatically.</p></details><article id="summaryOutput" class="summary-output empty"><p>No recap yet. Generate one when the meeting ends.</p></article><section class="solution-panel"><div class="panel-intro split"><div><h2>Suggested solutions</h2><p>Uses meeting and field notes from this project. Review suggestions before acting.</p></div><button id="generateSolutionsBtn" class="primary">✦ Suggest solutions</button></div><label>Your question or desired outcome<textarea id="solutionPromptInput" class="note-input prompt-input" placeholder="What problem should the suggestions solve?"></textarea></label><label class="ai-consent"><input id="solutionGroundingInput" type="checkbox" checked> Search the web for external sources (Gemini or OpenAI)</label><p class="settings-help">Web search may use your selected provider's API quota. Project context is sent to that provider when you generate solutions. Ollama uses project data only.</p><article id="solutionOutput" class="summary-output"><p>No suggested solutions yet.</p></article><div id="solutionSources"></div></section><div class="export-row"><button id="pdfBtn" class="primary">↓ Save as PDF</button><button id="docBtn" class="secondary">↓ Download Word</button><button id="packageBtn" class="secondary">↓ Meeting package</button><button id="shareBtn" class="secondary">↗ Share</button><button id="emailBtn" class="secondary">✉ Email</button></div></div>
+      <div id="summaryPanel" class="panel hidden"><div class="panel-intro split"><div><h2>Meeting recap</h2><p>Uses notes, agenda, tasks, people, and every transcript segment in this meeting.</p></div><button id="generateSummaryBtn" class="primary">✦ Generate recap</button></div><p class="settings-shortcut">AI provider and API keys are managed in <button type="button" id="manageAiBtn" class="text-button">Settings</button>.</p><label class="ai-consent meeting-ai-consent"><input id="meetingCloudAudioEnabled" type="checkbox"> Allow cloud transcription for this meeting's recordings</label><details><summary>Customize recap prompt</summary><textarea id="summaryPromptInput" class="note-input prompt-input" placeholder="Leave blank for the default recap prompt"></textarea><p>Saved for this meeting. The meeting data is added automatically.</p></details><p id="recapStatus" class="recap-status" role="status" aria-live="polite" hidden></p><article id="summaryOutput" class="summary-output empty"><p>No recap yet. Generate one when the meeting ends.</p></article><section class="solution-panel"><div class="panel-intro split"><div><h2>Suggested solutions</h2><p>Uses meeting and field notes from this project. Review suggestions before acting.</p></div><button id="generateSolutionsBtn" class="primary">✦ Suggest solutions</button></div><label>Your question or desired outcome<textarea id="solutionPromptInput" class="note-input prompt-input" placeholder="What problem should the suggestions solve?"></textarea></label><label class="ai-consent"><input id="solutionGroundingInput" type="checkbox" checked> Search the web for external sources (Gemini or OpenAI)</label><p class="settings-help">Web search may use your selected provider's API quota. Project context is sent to that provider when you generate solutions. Ollama uses project data only.</p><article id="solutionOutput" class="summary-output empty"><p>No suggested solutions yet.</p></article><div id="solutionSources"></div></section><div class="export-row"><button id="pdfBtn" class="primary">↓ Save as PDF</button><button id="docBtn" class="secondary">↓ Download Word</button><button id="packageBtn" class="secondary">↓ Raw Data</button><button id="shareBtn" class="secondary">↗ Share</button><button id="emailBtn" class="secondary">✉ Email</button></div></div>
     </section>
     <p id="recapKind" class="settings-help"></p>
     <section id="placeholderView" class="view hidden"></section>
@@ -117,23 +117,23 @@
       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
       <section class="settings-card"><h2>Recover recordings</h2><p>Audio is checkpointed while recording. Recover saved segments after an interruption.</p><div id="recoveryList"></div></section>
       <section class="settings-card"><h2>Sync conflicts</h2><p id="conflictCount"></p><div id="conflictList"></div></section>
-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 26</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 27</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
     </section>
   </main>
   </div>
   <dialog id="newMeetingDialog"><form id="newMeetingForm"><button class="dialog-close" type="button" value="cancel" aria-label="Close">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><label>Meeting template<select id="meetingTemplateSelect"><option value="">Blank meeting</option><option value="project">Project update</option><option value="site">Site inspection</option><option value="oneonone">1:1 meeting</option></select></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
-  <script src="zminutes-model.js?v=26"></script>
-  <script src="zminutes-repository.js?v=26"></script>
-  <script src="zminutes-app.js?v=26"></script>
-  <script src="zminutes-views.js?v=26"></script>
-  <script src="zminutes-capture.js?v=26"></script>
-  <script src="zminutes-audio.js?v=26"></script>
-  <script src="zminutes-intelligence.js?v=26"></script>
-  <script src="zminutes-exports.js?v=26"></script>
-  <script src="zminutes-sync.js?v=26"></script>
-  <script src="zminutes-recovery.js?v=26"></script>
-  <script src="zminutes-reminders.js?v=26"></script>
-  <script src="zminutes-pwa.js?v=26"></script>
+  <script src="zminutes-model.js?v=27"></script>
+  <script src="zminutes-repository.js?v=27"></script>
+  <script src="zminutes-app.js?v=27"></script>
+  <script src="zminutes-views.js?v=27"></script>
+  <script src="zminutes-capture.js?v=27"></script>
+  <script src="zminutes-audio.js?v=27"></script>
+  <script src="zminutes-intelligence.js?v=27"></script>
+  <script src="zminutes-exports.js?v=27"></script>
+  <script src="zminutes-sync.js?v=27"></script>
+  <script src="zminutes-recovery.js?v=27"></script>
+  <script src="zminutes-reminders.js?v=27"></script>
+  <script src="zminutes-pwa.js?v=27"></script>
 </body>
 </html>

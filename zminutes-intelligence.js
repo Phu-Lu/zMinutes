@@ -233,16 +233,17 @@
   async function run(id, work) {
     if (job)
       throw new Error("An AI request is already running. Wait or cancel it.");
-    await A.flush();
-    const m = structuredClone(A.data.meetings.find((m) => m.id === id));
-    if (!m) throw new Error("Meeting not found");
     job = new AbortController();
     A.aiBusy = true;
     $("cancelAiBtn").hidden = false;
     $("generateSummaryBtn").disabled = true;
     $("generateSolutionsBtn").disabled = true;
-    $("aiStatus").textContent = "Working: " + m.title;
+    $("aiStatus").textContent = "Preparing meeting data…";
     try {
+      await A.flush();
+      const m = structuredClone(A.data.meetings.find((m) => m.id === id));
+      if (!m) throw new Error("Meeting not found");
+      $("aiStatus").textContent = "Working: " + m.title;
       await work(m, structuredClone(read()), job.signal);
       $("aiStatus").textContent = "Completed: " + m.title;
     } catch (e) {
@@ -257,17 +258,43 @@
       $("generateSolutionsBtn").disabled = false;
     }
   }
-  async function recap(id) {
-    return run(id, async (m, c, signal) => {
-      const result = await text(m, c, signal);
-      if (signal.aborted) throw new DOMException("Canceled", "AbortError");
-      if (!result.trim())
-        throw new Error("The provider returned an empty recap");
-      await A.updateMeeting(id, {
-        summary: A.sanitize(result),
-        summaryType: c.provider === "quick" ? "quick" : "ai",
+  function recapStatus(id, message, state) {
+    if (A.meetingId !== id) return;
+    A.recapStatusMeetingId = id;
+    const box = $("recapStatus");
+    box.textContent = message;
+    box.dataset.state = state;
+    box.hidden = false;
+  }
+  async function recap(id, requireTranscript = false) {
+    recapStatus(id, "Generating recap…", "working");
+    try {
+      await run(id, async (m, c, signal) => {
+        if (requireTranscript && !ZMinutesModel.fullTranscript(m).trim())
+          throw new Error("Transcribe or enter meeting content first.");
+        const result = await text(m, c, signal);
+        if (signal.aborted) throw new DOMException("Canceled", "AbortError");
+        const summary = A.sanitize(result);
+        const visible = document.createElement("div");
+        visible.innerHTML = summary;
+        if (!visible.textContent.trim())
+          throw new Error("The provider returned an empty recap");
+        await A.updateMeeting(id, {
+          summary,
+          summaryType: c.provider === "quick" ? "quick" : "ai",
+        });
       });
-    });
+      recapStatus(id, "Recap saved.", "success");
+    } catch (e) {
+      recapStatus(
+        id,
+        e.name === "AbortError"
+          ? "Recap canceled."
+          : "Recap failed: " + e.message,
+        "error",
+      );
+      throw e;
+    }
   }
   async function solutions(id) {
     return run(id, async (m, c, signal) => {
@@ -570,6 +597,20 @@
           recordingId: targetId,
           createdAt: old?.createdAt || Date.now(),
           text: transcript,
+          ...(old && Number.isFinite(old.order)
+            ? { order: old.order }
+            : current.transcriptSegments.some((item) =>
+                  Number.isFinite(item.order),
+                )
+              ? {
+                  order:
+                    Math.max(
+                      ...current.transcriptSegments
+                        .map((item) => item.order)
+                        .filter(Number.isFinite),
+                    ) + 1,
+                }
+              : {}),
         };
         await A.updateMeeting(id, {
           transcriptSegments: old
@@ -593,13 +634,11 @@
   $("transcriptRecapBtn").onclick = () =>
     A.run(async () => {
       const id = A.meetingId;
-      if (!ZMinutesModel.fullTranscript(A.current()).trim())
-        throw new Error("Transcribe or enter meeting content first.");
-      await recap(id);
       if (A.meetingId === id) {
         A.tab = "summary";
         A.renderEditor();
       }
+      await recap(id, true);
     });
   $("cancelAiBtn").onclick = () => job?.abort();
   A.ai = { recap, solutions, transcribe, quick, pcmSegment };

@@ -536,6 +536,7 @@
     if (m && fields[t.id]) {
       m[fields[t.id]] = t.value;
       A.queue("meetings", m);
+      if (t.classList.contains("prompt-input")) A.resizePrompts();
       if (t.id === "transcriptInput")
         $("transcriptCombined").textContent =
           M.fullTranscript(m) || "No transcript yet.";

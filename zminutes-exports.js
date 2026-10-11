@@ -22,36 +22,32 @@
     return t.textContent;
   };
   function blocks(m) {
+    if (!m) throw new Error("Open a meeting before exporting.");
+    const summary = plain(m.summary).trim(),
+      solutions = plain(m.solutions).trim();
+    if (!summary && !solutions)
+      throw new Error(
+        "Generate a recap or suggested solutions before exporting.",
+      );
     return [
       { title: m.title || "Untitled meeting", level: 1 },
-      { title: A.formatDate(m.date) + " · " + m.location },
-      { title: "Notes", level: 2 },
-      { title: m.note },
-      { title: "Agenda and answers", level: 2 },
-      ...m.agenda.map((a) => ({
-        title: (a.done ? "☑ " : "☐ ") + a.text + "\n" + a.note,
-      })),
-      { title: "People", level: 2 },
-      ...m.stakeholders.map((p) => ({
-        title: p.name + " · " + p.role + " · " + p.status,
-      })),
-      { title: "Tasks", level: 2 },
-      ...A.data.tasks
-        .filter((t) => t.meetingId === m.id)
-        .map((t) => ({
-          title: t.title + " · " + t.status + (t.due ? " · Due " + t.due : ""),
-        })),
-      { title: "Transcript", level: 2 },
-      { title: ZMinutesModel.fullTranscript(m) },
-      { title: "Recap", level: 2 },
-      { title: plain(m.summary) },
-      { title: "Suggested solutions", level: 2 },
-      { title: plain(m.solutions) },
-      ...m.solutionSources.map((source) => ({
-        title: source.title + " · " + source.url,
-      })),
+      { title: [A.formatDate(m.date), m.location].filter(Boolean).join(" · ") },
+      ...(summary ? [{ title: "Recap", level: 2 }, { title: summary }] : []),
+      ...(solutions
+        ? [
+            { title: "Suggested solutions", level: 2 },
+            { title: solutions },
+            ...m.solutionSources.map((source) => ({
+              title: source.title + " · " + source.url,
+            })),
+          ]
+        : []),
     ];
   }
+  const sharingText = (m) =>
+    blocks(m)
+      .map((b) => b.title)
+      .join("\n\n");
   async function print() {
     await A.flush();
     const m = structuredClone(A.current());
@@ -64,21 +60,7 @@
       el.textContent = b.title;
       root.append(el);
     }
-    for (const p of m.photos) {
-      const url = await S.mediaURL(p.mediaId);
-      if (!url) continue;
-      const article = document.createElement("article"),
-        img = document.createElement("img"),
-        caption = document.createElement("p");
-      img.src = url;
-      caption.textContent = p.note;
-      article.append(img, caption);
-      root.append(article);
-    }
     document.body.append(root);
-    await Promise.all(
-      [...root.querySelectorAll("img")].map((i) => i.decode().catch(() => {})),
-    );
     window.print();
   }
   const crc = (bytes) => {
@@ -149,42 +131,14 @@
       '</w:rPr><w:t xml:space="preserve">' +
       xml(text) +
       "</w:t></w:r></w:p>";
-    let body = blocks(m)
+    const body = blocks(m)
       .flatMap((b) => b.title.split("\n").map((line) => p(line, !!b.level)))
       .join("");
-    const files = {},
-      rels = [];
-    let i = 0;
-    for (const photo of m.photos) {
-      const item = await S.get("media", photo.mediaId);
-      if (!item) continue;
-      const bitmap = await createImageBitmap(item.blob),
-        canvas = document.createElement("canvas");
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      canvas.getContext("2d").drawImage(bitmap, 0, 0);
-      bitmap.close();
-      const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
-      const id = ++i,
-        name = "image" + id + ".png",
-        cx = 5486400,
-        cy = Math.min(8229600, Math.round((cx * canvas.height) / canvas.width));
-      files["word/media/" + name] = new Uint8Array(await blob.arrayBuffer());
-      rels.push(
-        `<Relationship Id="rId${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${name}"/>`,
-      );
-      body +=
-        `<w:p><w:r><w:drawing><wp:inline><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Field photo ${id}"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="${name}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rId${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>` +
-        p(photo.note);
-    }
+    const files = {};
     files["[Content_Types].xml"] =
-      '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+      '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
     files["_rels/.rels"] =
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
-    files["word/_rels/document.xml.rels"] =
-      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-      rels.join("") +
-      "</Relationships>";
     files["word/document.xml"] =
       '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>' +
       body +
@@ -456,9 +410,7 @@
     A.run(async () => {
       await A.flush();
       const m = A.current(),
-        text = blocks(m)
-          .map((b) => b.title)
-          .join("\n\n");
+        text = sharingText(m);
       if (navigator.share) await navigator.share({ title: m.title, text });
       else {
         await navigator.clipboard.writeText(text);
@@ -473,11 +425,7 @@
         "mailto:?subject=" +
         encodeURIComponent(m.title) +
         "&body=" +
-        encodeURIComponent(
-          blocks(m)
-            .map((b) => b.title)
-            .join("\n\n"),
-        );
+        encodeURIComponent(sharingText(m));
     });
   A.exports = {
     calendar,
@@ -487,6 +435,7 @@
     word,
     zip,
     blocks,
+    sharingText,
     importPackage,
   };
 })();
