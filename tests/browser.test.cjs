@@ -627,9 +627,10 @@ const server = http.createServer((req, res) => {
       (clipId) => !ZM.current().recordings.some((r) => r.id === clipId),
       clipToDelete.id,
     );
-    await page.waitForFunction(
-      async (audioId) => !(await ZMinutesStore.get("media", audioId)),
-      clipToDelete.audioId,
+    await page.waitForFunction(() =>
+      document
+        .getElementById("appNotice")
+        .textContent.includes("Recording deleted"),
     );
     assert.equal(
       await page.evaluate(
