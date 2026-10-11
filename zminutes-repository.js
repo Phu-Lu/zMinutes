@@ -114,6 +114,21 @@
       value.audioId = item.id;
     }
     delete value.audio;
+    for (const recording of value.recordings || []) {
+      if (recording.data?.startsWith("data:audio/")) {
+        const item = mediaRecord(
+          await (await fetch(recording.data)).blob(),
+          recording.label,
+        );
+        media.push(item);
+        recording.audioId = item.id;
+      } else if (!recording.audioId && value.audioId) {
+        recording.audioId = value.audioId;
+      }
+      delete recording.data;
+    }
+    if (value.recordings?.length)
+      value.audioId = value.recordings[value.recordings.length - 1].audioId;
     for (const p of value.photos || []) {
       if (p.data?.startsWith("data:image/")) {
         const item = mediaRecord(
@@ -265,11 +280,16 @@
   async function portable(includeAudio = true) {
     const data = await snapshot();
     for (const m of data.meetings) {
-      if (includeAudio && m.audioId) {
+      if (includeAudio && m.audioId && !m.recordings.length) {
         const a = await get("media", m.audioId);
         if (a) m.audio = await toDataURL(a.blob);
       }
       delete m.audioId;
+      for (const recording of m.recordings) {
+        const a = includeAudio && (await get("media", recording.audioId));
+        if (a) recording.data = await toDataURL(a.blob);
+        delete recording.audioId;
+      }
     }
     for (const kind of ["meetings", "fieldNotes"])
       for (const r of data[kind])
@@ -328,6 +348,45 @@
         for (const op of ops) tx.objectStore("journal").put(op, op.id);
       });
       notify();
+    });
+  }
+  async function importMissing(raw) {
+    const data = M.validateBackup(raw);
+    return serial(async () => {
+      const existing = new Map(
+          (await all("entities")).map((row) => [M.key(row.kind, row.id), row]),
+        ),
+        media = [],
+        rows = [],
+        ops = [];
+      for (const kind of M.kinds) {
+        if (kind === "files") continue;
+        for (const record of data[kind]) {
+          const k = M.key(kind, record.id),
+            prior = existing.get(k);
+          if (prior?.value) continue;
+          const value = await convert(kind, record, media),
+            id = crypto.randomUUID();
+          rows.push({ kind, id: value.id, value, heads: [id] });
+          ops.push({
+            id,
+            kind,
+            entityId: value.id,
+            parents: prior?.heads || [],
+            value: M.publicValue(kind, value),
+            uploaded: false,
+          });
+        }
+      }
+      if (!rows.length) return 0;
+      await transaction(["entities", "journal", "media"], (tx) => {
+        for (const item of media) tx.objectStore("media").put(item, item.id);
+        for (const row of rows)
+          tx.objectStore("entities").put(row, M.key(row.kind, row.id));
+        for (const op of ops) tx.objectStore("journal").put(op, op.id);
+      });
+      notify();
+      return rows.filter((row) => row.kind !== "projects").length;
     });
   }
   async function pending() {
@@ -407,8 +466,10 @@
             entry = reduced.entities[key],
             sample = byId.get(heads[0]),
             value = entry ? M.normalize(sample.kind, entry.value) : null;
-          if (value && sample.kind === "meetings" && prior?.value?.audioId)
-            value.audioId = prior.value.audioId;
+          if (value && sample.kind === "meetings" && prior?.value) {
+            value.audioId = prior.value.audioId || "";
+            value.recordings = prior.value.recordings || [];
+          }
           tx.objectStore("entities").put(
             { kind: sample.kind, id: sample.entityId, value, heads },
             key,
@@ -448,6 +509,7 @@
     mediaURL,
     portable,
     restore,
+    importMissing,
     pending,
     bundle,
     acknowledge,

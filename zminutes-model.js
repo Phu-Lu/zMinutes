@@ -35,8 +35,22 @@
         location: text(raw.location),
         note: text(raw.note),
         transcript: text(raw.transcript),
+        transcriptSegments: list(raw.transcriptSegments).map((s, i) => ({
+          id: text(s.id) || r.id + "-segment-" + i,
+          recordingId: text(s.recordingId),
+          createdAt: Number(s.createdAt) || 0,
+          text: text(s.text),
+        })),
         summary: text(raw.summary),
         summaryType: text(raw.summaryType) || (raw.summary ? "existing" : ""),
+        summaryPrompt: text(raw.summaryPrompt),
+        solutions: text(raw.solutions),
+        solutionPrompt: text(raw.solutionPrompt),
+        solutionSources: list(raw.solutionSources).map((s) => ({
+          title: text(s.title),
+          url: text(s.url),
+        })),
+        solutionGrounding: raw.solutionGrounding !== false,
         cloudAudioAllowed: !!raw.cloudAudioAllowed,
         agenda: list(raw.agenda).map((a, i) => ({
           id: text(a.id) || r.id + "-agenda-" + i,
@@ -59,6 +73,24 @@
           ...(p.data ? { data: text(p.data) } : {}),
         })),
         audioId: text(raw.audioId),
+        recordings: list(raw.recordings).length
+          ? list(raw.recordings).map((a, i) => ({
+              id: text(a.id) || r.id + "-recording-" + i,
+              audioId: text(a.audioId),
+              createdAt: Number(a.createdAt) || 0,
+              label: text(a.label) || "Recording " + (i + 1),
+              ...(a.data ? { data: text(a.data) } : {}),
+            }))
+          : raw.audioId || raw.audio
+            ? [
+                {
+                  id: r.id + "-earlier-recording",
+                  audioId: text(raw.audioId),
+                  createdAt: Number(raw.updated) || 0,
+                  label: "Earlier recording",
+                },
+              ]
+            : [],
         ...(raw.audio ? { audio: text(raw.audio) } : {}),
       });
     if (kind === "tasks")
@@ -95,9 +127,33 @@
     const copy = normalize(kind, value);
     delete copy.audio;
     delete copy.audioId;
+    delete copy.recordings;
     return copy;
   }
   const key = (kind, id) => kind + ":" + id;
+  const fullTranscript = (meeting) =>
+    [
+      text(meeting.transcript),
+      ...list(meeting.transcriptSegments)
+        .slice()
+        .sort((a, b) => {
+          const recordings = list(meeting.recordings);
+          const ai = recordings.findIndex((item) => item.id === a.recordingId);
+          const bi = recordings.findIndex((item) => item.id === b.recordingId);
+          return (
+            (ai < 0 ? Infinity : ai) - (bi < 0 ? Infinity : bi) ||
+            (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0)
+          );
+        })
+        .map((segment, i) => {
+          const recording = list(meeting.recordings).find(
+            (item) => item.id === segment.recordingId,
+          );
+          return `${recording?.label || "Recording " + (i + 1)}:\n${text(segment.text)}`;
+        }),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
   function reduce(operations) {
     const byId = new Map();
     for (const op of operations) {
@@ -214,6 +270,7 @@
     normalize,
     publicValue,
     key,
+    fullTranscript,
     reduce,
     validateBackup,
     legacyTasks,

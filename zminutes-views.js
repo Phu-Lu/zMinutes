@@ -161,7 +161,7 @@
           [
             m.title,
             m.note,
-            m.transcript,
+            ZMinutesModel.fullTranscript(m),
             m.location,
             ...m.stakeholders.map((p) => p.name),
           ]
@@ -192,6 +192,8 @@
       $("locationInput").value = m.location;
       $("noteInput").value = m.note;
       $("transcriptInput").value = m.transcript;
+      $("summaryPromptInput").value = m.summaryPrompt;
+      $("solutionPromptInput").value = m.solutionPrompt;
     }
     $("projectPicker").innerHTML = A.data.projects
       .map((p) => `<option value="${e(p.id)}">${e(p.name)}</option>`)
@@ -240,20 +242,47 @@
             ? "Saved recap"
             : "";
     $("meetingCloudAudioEnabled").checked = m.cloudAudioAllowed;
+    $("solutionGroundingInput").checked = m.solutionGrounding;
+    $("transcriptCombined").textContent =
+      ZMinutesModel.fullTranscript(m) || "No transcript yet.";
+    $("solutionOutput").innerHTML = m.solutions
+      ? A.sanitize(m.solutions)
+      : "<p>No suggested solutions yet.</p>";
+    $("solutionSources").innerHTML = m.solutionSources
+      .filter((s) => /^https?:\/\//i.test(s.url))
+      .map(
+        (s) =>
+          `<div><a href="${e(s.url)}" target="_blank" rel="noopener noreferrer">${e(s.title || s.url)}</a></div>`,
+      )
+      .join("");
+    const recordings = m.recordings.filter((r) => r.audioId);
+    if (!recordings.some((r) => r.id === A.selectedRecordingId))
+      A.selectedRecordingId = recordings.at(-1)?.id || null;
+    $("recordingList").innerHTML = recordings
+      .map((r, i) => {
+        const transcribed = m.transcriptSegments.some(
+          (segment) => segment.recordingId === r.id,
+        );
+        return `<div class="file-row ${A.selectedRecordingId === r.id ? "selected" : ""}"><span>${e(r.label || "Recording " + (i + 1))} · ${e(r.createdAt ? new Date(r.createdAt).toLocaleString() : "Saved audio")} · ${transcribed ? "Transcribed" : "Not transcribed"}</span><button class="secondary" data-select-recording="${e(r.id)}">Play</button><button class="secondary" data-transcribe-recording="${e(r.id)}">Transcribe</button><button class="secondary" data-download-recording="${e(r.id)}">Download</button></div>`;
+      })
+      .join("");
+    const chosenRecording = recordings.find(
+      (r) => r.id === A.selectedRecordingId,
+    );
     const audio = $("audioPlayback");
-    if (audio.dataset.media !== m.audioId) {
-      audio.dataset.media = m.audioId;
+    if (audio.dataset.media !== chosenRecording?.audioId) {
+      audio.dataset.media = chosenRecording?.audioId || "";
       audio.removeAttribute("src");
-      audio.hidden = !m.audioId;
-      ZMinutesStore.mediaURL(m.audioId).then((url) => {
-        if (audio.dataset.media === m.audioId && url) {
+      audio.hidden = !chosenRecording?.audioId;
+      ZMinutesStore.mediaURL(chosenRecording?.audioId).then((url) => {
+        if (audio.dataset.media === chosenRecording?.audioId && url) {
           audio.src = url;
           audio.hidden = false;
         }
       });
     }
     $("downloadAudioBtn").disabled = $("transcribeAgainBtn").disabled =
-      !m.audioId;
+      !chosenRecording?.audioId;
     A.loadImages();
   };
   A.renderSection = () => {
@@ -322,13 +351,15 @@
           title: p.note || p.title || "Photo",
           type: "Image",
         })),
-        ...meetings()
-          .filter((m) => m.audioId)
-          .map((m) => ({
-            mediaId: m.audioId,
-            title: m.title + " — audio",
-            type: "Recording (local)",
-          })),
+        ...meetings().flatMap((m) =>
+          m.recordings
+            .filter((r) => r.audioId)
+            .map((r) => ({
+              mediaId: r.audioId,
+              title: m.title + " — " + r.label,
+              type: "Recording (local)",
+            })),
+        ),
       ];
       box.innerHTML =
         head(

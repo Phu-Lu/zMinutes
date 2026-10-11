@@ -126,6 +126,64 @@ test("remote changes retain local audio and conflict versions", async () => {
   assert.equal(m.audioId, "local-audio");
   assert.equal(m.title, "Phone");
 });
+test("multiple recordings survive backup/restore; missing-only recovery does not overwrite", async () => {
+  const { store: S } = repository();
+  await S.init();
+  const first = await S.addMedia(
+    new Blob(["first"], { type: "audio/wav" }),
+    "first.wav",
+  );
+  const second = await S.addMedia(
+    new Blob(["second"], { type: "audio/wav" }),
+    "second.wav",
+  );
+  await S.put("meetings", {
+    id: "meeting",
+    title: "Current",
+    audioId: second,
+    recordings: [
+      { id: "clip-1", audioId: first, label: "First" },
+      { id: "clip-2", audioId: second, label: "Second" },
+    ],
+    transcriptSegments: [
+      { id: "segment-2", recordingId: "clip-2", text: "Second words" },
+      { id: "segment-1", recordingId: "clip-1", text: "First words" },
+    ],
+  });
+  const backup = await S.portable();
+  assert.equal(backup.meetings[0].recordings.length, 2);
+  assert.ok(
+    backup.meetings[0].recordings.every((r) =>
+      r.data?.startsWith("data:audio/"),
+    ),
+  );
+  assert.match(
+    M.fullTranscript(backup.meetings[0]),
+    /First words[\s\S]*Second words/,
+  );
+  const { store: T } = repository();
+  await T.init();
+  await T.restore(backup);
+  assert.equal((await T.snapshot()).meetings[0].recordings.length, 2);
+  assert.equal((await T.all("media")).length, 2);
+  await T.put("meetings", {
+    ...(await T.snapshot()).meetings[0],
+    title: "Keep current",
+  });
+  assert.equal(await T.importMissing(backup), 0);
+  assert.equal((await T.snapshot()).meetings[0].title, "Keep current");
+  assert.equal(
+    await T.importMissing({
+      ...backup,
+      meetings: [...backup.meetings, { id: "lost", title: "Recovered" }],
+    }),
+    1,
+  );
+  assert.equal(
+    (await T.snapshot()).meetings.find((m) => m.id === "lost").title,
+    "Recovered",
+  );
+});
 test("invalid restore leaves all records unchanged", async () => {
   const { store: S } = repository();
   await S.init();

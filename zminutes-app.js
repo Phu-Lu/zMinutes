@@ -513,10 +513,15 @@
         locationInput: "location",
         noteInput: "note",
         transcriptInput: "transcript",
+        summaryPromptInput: "summaryPrompt",
+        solutionPromptInput: "solutionPrompt",
       };
     if (m && fields[t.id]) {
       m[fields[t.id]] = t.value;
       A.queue("meetings", m);
+      if (t.id === "transcriptInput")
+        $("transcriptCombined").textContent =
+          M.fullTranscript(m) || "No transcript yet.";
     }
     if (m && t.dataset.agendaNote) {
       m.agenda.find((a) => a.id === t.dataset.agendaNote).note = t.value;
@@ -569,6 +574,8 @@
       }
       if (m && t.id === "meetingCloudAudioEnabled")
         return A.updateMeeting(m.id, { cloudAudioAllowed: t.checked });
+      if (m && t.id === "solutionGroundingInput")
+        return A.updateMeeting(m.id, { solutionGrounding: t.checked });
       if (m && t.id === "projectPicker") {
         await A.updateMeeting(m.id, { projectId: t.value });
         A.project = t.value;

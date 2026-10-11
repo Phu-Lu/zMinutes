@@ -256,7 +256,11 @@ const server = http.createServer((req, res) => {
       await ZM.updateMeeting(id, { cloudAudioAllowed: true });
       document.getElementById("transcriptionApiKey").value = "test-only";
       const media = await ZMinutesStore.get("media", ZM.current().audioId);
-      window.aiTest = ZM.ai.transcribe(id, media.blob);
+      window.aiTest = ZM.ai.transcribe(
+        id,
+        media.blob,
+        ZM.current().recordings.at(-1).id,
+      );
     }, id);
     await started;
     assert.match(
@@ -268,14 +272,108 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => window.aiTest);
     assert.equal(
       await page.evaluate(
-        (id) => ZM.data.meetings.find((m) => m.id === id).transcript,
+        (id) =>
+          ZMinutesModel.fullTranscript(
+            ZM.data.meetings.find((m) => m.id === id),
+          ),
         id,
       ),
-      "Transcript for original meeting",
+      "Recording 2:\nTranscript for original meeting",
     );
     assert.equal(await page.evaluate(() => ZM.current().transcript), "");
     await page.unroute("https://generativelanguage.googleapis.com/**");
     await page.evaluate((id) => ZM.open(id, "summary"), id);
+    const aiCalls = [];
+    await page.route(
+      "https://generativelanguage.googleapis.com/**",
+      async (route) => {
+        const body = route.request().postDataJSON();
+        aiCalls.push(body);
+        await route.fulfill({
+          json: {
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: body.tools
+                        ? "<p>Use phased rollout.</p>"
+                        : body.contents[0].parts.some((p) => p.inlineData)
+                          ? "First clip transcript"
+                          : "<p>Custom recap.</p>",
+                    },
+                  ],
+                },
+                ...(body.tools
+                  ? {
+                      groundingMetadata: {
+                        groundingChunks: [
+                          {
+                            web: {
+                              title: "Google source",
+                              uri: "https://example.com/source",
+                            },
+                          },
+                        ],
+                      },
+                    }
+                  : {}),
+              },
+            ],
+          },
+        });
+      },
+    );
+    await page.evaluate(async (id) => {
+      const m = ZM.data.meetings.find((item) => item.id === id);
+      const clip = m.recordings[0];
+      const item = await ZMinutesStore.get("media", clip.audioId);
+      await ZM.ai.transcribe(id, item.blob, clip.id);
+      await ZM.updateMeeting(id, {
+        summaryPrompt: "Focus on blockers and owners.",
+        solutionPrompt: "Offer a practical rollout.",
+      });
+      await ZM.ai.recap(id);
+      await ZM.ai.solutions(id);
+    }, id);
+    const aiState = await page.evaluate((id) => {
+      const m = ZM.data.meetings.find((item) => item.id === id);
+      return {
+        segments: m.transcriptSegments,
+        full: ZMinutesModel.fullTranscript(m),
+        summary: m.summary,
+        solutions: m.solutions,
+        sources: m.solutionSources,
+      };
+    }, id);
+    assert.equal(aiState.segments.length, 2);
+    assert.match(
+      aiState.full,
+      /First clip transcript[\s\S]*Transcript for original meeting/,
+    );
+    assert.match(aiState.summary, /Custom recap/);
+    assert.match(aiState.solutions, /phased rollout/);
+    assert.equal(aiState.sources[0].url, "https://example.com/source");
+    assert.ok(
+      aiCalls.some(
+        (call) =>
+          call.contents[0].parts[0].text.includes(
+            "Focus on blockers and owners.",
+          ) &&
+          call.contents[0].parts[0].text.includes("First clip transcript") &&
+          call.contents[0].parts[0].text.includes(
+            "Transcript for original meeting",
+          ),
+      ),
+    );
+    assert.ok(
+      aiCalls.some(
+        (call) =>
+          call.tools?.[0]?.google_search &&
+          call.contents[0].parts[0].text.includes("Offer a practical rollout."),
+      ),
+    );
+    await page.unroute("https://generativelanguage.googleapis.com/**");
     console.log(
       "PASS: 44.1 kHz duration and AI results stay with the original meeting",
     );
@@ -391,6 +489,12 @@ const server = http.createServer((req, res) => {
           },
         };
       });
+    await phone.evaluate(() => ZM.sync.sync());
+    assert.equal(
+      drive.length,
+      0,
+      "An empty new device must not upload over Drive",
+    );
     await page.evaluate(() => ZM.sync.sync());
     await phone.evaluate(() => ZM.sync.sync());
     assert.equal(await phone.evaluate(() => ZM.data.meetings.length), 2);

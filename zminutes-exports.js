@@ -42,9 +42,14 @@
           title: t.title + " · " + t.status + (t.due ? " · Due " + t.due : ""),
         })),
       { title: "Transcript", level: 2 },
-      { title: m.transcript },
+      { title: ZMinutesModel.fullTranscript(m) },
       { title: "Recap", level: 2 },
       { title: plain(m.summary) },
+      { title: "Suggested solutions", level: 2 },
+      { title: plain(m.solutions) },
+      ...m.solutionSources.map((source) => ({
+        title: source.title + " · " + source.url,
+      })),
     ];
   }
   async function print() {
@@ -214,11 +219,25 @@
       id: crypto.randomUUID(),
       projectId: A.project,
     });
-    if (m.audio) {
+    for (const recording of m.recordings) {
+      if (recording.data?.startsWith("data:audio/")) {
+        recording.audioId = await S.addMedia(
+          await (await fetch(recording.data)).blob(),
+          recording.label || "Imported recording",
+        );
+      } else recording.audioId = "";
+      delete recording.data;
+    }
+    if (m.recordings.some((recording) => recording.audioId))
+      m.audioId = m.recordings
+        .filter((recording) => recording.audioId)
+        .at(-1).audioId;
+    else if (m.audio) {
       m.audioId = await S.addMedia(
         await (await fetch(m.audio)).blob(),
         "Imported recording",
       );
+      if (m.recordings.length) m.recordings[0].audioId = m.audioId;
       delete m.audio;
     }
     for (const p of m.photos) {

@@ -7,8 +7,7 @@
   let token = "",
     folder = "",
     syncing = false,
-    gis,
-    timer;
+    gis;
   const status = (s) => {
     $("syncState").textContent = s;
     $("driveStatus").textContent = s;
@@ -255,6 +254,16 @@
         }
       }
       const pending = await S.pending();
+      if (
+        !files.length &&
+        !bundles.length &&
+        !pending.some((op) => op.kind !== "projects" || op.entityId !== "inbox")
+      ) {
+        status(
+          "No Drive data found. Check the Google account and Client ID before adding meetings.",
+        );
+        return;
+      }
       for (let i = 0; i < pending.length; i += 30) {
         const batch = pending.slice(i, i + 30),
           payload = await S.bundle(batch);
@@ -291,12 +300,7 @@
   $("syncBtn").onclick = $("syncSettingsBtn").onclick = () => sync();
   window.addEventListener("zminutes:datachange", () => {
     if (syncing) return;
-    clearTimeout(timer);
-    status("Local changes · waiting to sync");
-    if (token) timer = setTimeout(() => sync(false), 3000);
-  });
-  window.addEventListener("online", () => {
-    if (token) sync(false);
+    status("Local changes · tap Sync now");
   });
   window.addEventListener("zminutes:ready", () => {
     A.run(async () =>
@@ -351,5 +355,13 @@
       }
     });
   };
-  A.sync = { sync, legacyBundle };
+  A.sync = {
+    sync,
+    legacyBundle,
+    list,
+    api,
+    prepareRecovery: async () => {
+      if (!token) await authorize();
+    },
+  };
 })();

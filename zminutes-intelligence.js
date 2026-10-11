@@ -105,7 +105,7 @@
   function quick(m) {
     const lines = [
         m.note,
-        m.transcript,
+        ZMinutesModel.fullTranscript(m),
         ...m.agenda.map((a) => a.text + " " + a.note),
       ]
         .join("\n")
@@ -154,18 +154,21 @@
       signal.removeEventListener("abort", abort);
     }
   }
-  async function text(m, c, signal) {
+  async function text(m, c, signal, override) {
     const prompt =
-      "Summarize this meeting accurately in its original language. Return HTML using only h3, p, ul, li, strong. Sections: Overview, Decisions, Action items, Open questions. Do not invent facts.\n" +
-      JSON.stringify({
-        title: m.title,
-        date: m.date,
-        note: m.note,
-        transcript: m.transcript,
-        agenda: m.agenda,
-        people: m.stakeholders,
-        tasks: A.data.tasks.filter((t) => t.meetingId === m.id),
-      });
+      override ||
+      (m.summaryPrompt.trim() ||
+        "Summarize this meeting accurately in its original language. Return HTML using only h3, p, ul, li, strong. Sections: Overview, Decisions, Action items, Open questions. Do not invent facts.") +
+        "\nMeeting data:\n" +
+        JSON.stringify({
+          title: m.title,
+          date: m.date,
+          note: m.note,
+          transcript: ZMinutesModel.fullTranscript(m),
+          agenda: m.agenda,
+          people: m.stakeholders,
+          tasks: A.data.tasks.filter((t) => t.meetingId === m.id),
+        });
     const key = c.keys?.[c.provider];
     if (c.provider === "quick") return quick(m);
     if (c.provider === "ollama") {
@@ -237,6 +240,7 @@
     A.aiBusy = true;
     $("cancelAiBtn").hidden = false;
     $("generateSummaryBtn").disabled = true;
+    $("generateSolutionsBtn").disabled = true;
     $("aiStatus").textContent = "Working: " + m.title;
     try {
       await work(m, structuredClone(read()), job.signal);
@@ -250,6 +254,7 @@
       A.aiBusy = false;
       $("cancelAiBtn").hidden = true;
       $("generateSummaryBtn").disabled = false;
+      $("generateSolutionsBtn").disabled = false;
     }
   }
   async function recap(id) {
@@ -262,6 +267,106 @@
         summary: A.sanitize(result),
         summaryType: c.provider === "quick" ? "quick" : "ai",
       });
+    });
+  }
+  async function solutions(id) {
+    return run(id, async (m, c, signal) => {
+      if (c.provider === "quick")
+        throw new Error(
+          "Select Gemini, OpenAI, or Ollama in Settings for suggested solutions.",
+        );
+      if (m.solutionGrounding && c.provider !== "gemini")
+        throw new Error(
+          "Google Search grounding requires Gemini. Select Gemini or turn off Google Search.",
+        );
+      const key = c.keys?.[c.provider];
+      if (c.provider === "gemini" && !key)
+        throw new Error("Enter your Gemini API key in Settings.");
+      const project = A.data.projects.find((p) => p.id === m.projectId);
+      const related = A.data.meetings
+        .filter((item) => item.projectId === m.projectId)
+        .sort((a, b) =>
+          a.id === id ? -1 : b.id === id ? 1 : b.updated - a.updated,
+        )
+        .slice(0, 12)
+        .map((item) => ({
+          source: item.title,
+          date: item.date,
+          notes: item.note.slice(0, 3500),
+          transcript: ZMinutesModel.fullTranscript(item).slice(0, 6000),
+          recap: item.summary.replace(/<[^>]+>/g, " ").slice(0, 1800),
+        }));
+      const context = {
+        project: project?.name || m.projectId,
+        meetings: related,
+        tasks: A.data.tasks
+          .filter((task) => task.projectId === m.projectId)
+          .slice(0, 40)
+          .map((task) => ({
+            title: task.title,
+            status: task.status,
+            due: task.due,
+          })),
+        fieldNotes: A.data.fieldNotes
+          .filter((note) => note.projectId === m.projectId)
+          .slice(0, 20)
+          .map((note) => ({
+            title: note.title,
+            location: note.location,
+            text: note.text.slice(0, 2500),
+            photoCaptions: note.photos.map((p) => p.note).filter(Boolean),
+          })),
+      };
+      const prompt =
+        "Suggest practical solutions for this meeting in the original language. Return HTML using only h3, p, ul, li, strong. Include: problem, 2-3 options with tradeoffs, recommended next steps, and open assumptions. Cite internal meeting titles when using project facts. Cite web sources when available. Distinguish verified facts from suggestions; do not invent project details.\n" +
+        "User objective: " +
+        (m.solutionPrompt.trim() ||
+          "Find actionable solutions to the issues in this meeting.") +
+        "\nInternal project context:\n" +
+        JSON.stringify(context).slice(0, 36000);
+      let result,
+        sources = [];
+      if (c.provider === "gemini") {
+        const response = await request(
+          "https://generativelanguage.googleapis.com/v1beta/models/" +
+            encodeURIComponent(c.model) +
+            ":generateContent",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": key,
+            },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              ...(m.solutionGrounding
+                ? { tools: [{ google_search: {} }] }
+                : {}),
+            }),
+          },
+          signal,
+        );
+        const candidate = response.candidates?.[0];
+        result = candidate?.content?.parts
+          ?.map((part) => part.text || "")
+          .join("");
+        sources = (candidate?.groundingMetadata?.groundingChunks || [])
+          .filter((chunk) => /^https?:\/\//i.test(chunk.web?.uri || ""))
+          .map((chunk) => ({
+            title: chunk.web.title || chunk.web.uri,
+            url: chunk.web.uri,
+          }));
+      } else {
+        result = await text(m, c, signal, prompt);
+      }
+      if (signal.aborted) throw new DOMException("Canceled", "AbortError");
+      if (!result?.trim())
+        throw new Error("The provider returned no solutions.");
+      await A.updateMeeting(id, {
+        solutions: A.sanitize(result),
+        solutionSources: sources,
+      });
+      if (A.meetingId === id) A.renderEditor(false);
     });
   }
   function pcmSegment(audio, start, count) {
@@ -286,7 +391,7 @@
     }
     return ZMinutesCapture.wav([bytes]);
   }
-  async function transcribe(id, blob) {
+  async function transcribe(id, blob, recordingId) {
     return run(id, async (m, c, signal) => {
       if (!m.cloudAudioAllowed)
         throw new Error("Cloud transcription is disabled for this meeting.");
@@ -370,11 +475,48 @@
         throw new Error(
           "No speech was returned. Existing transcript retained.",
         );
-      await A.updateMeeting(id, { transcript });
-      if (A.meetingId === id) $("transcriptInput").value = transcript;
+      const current = A.data.meetings.find((meeting) => meeting.id === id),
+        targetId = recordingId || current.recordings.at(-1)?.id;
+      if (targetId) {
+        const old = current.transcriptSegments.find(
+          (segment) => segment.recordingId === targetId,
+        );
+        const segment = {
+          id: old?.id || crypto.randomUUID(),
+          recordingId: targetId,
+          createdAt: old?.createdAt || Date.now(),
+          text: transcript,
+        };
+        await A.updateMeeting(id, {
+          transcriptSegments: old
+            ? current.transcriptSegments.map((item) =>
+                item.id === old.id ? segment : item,
+              )
+            : [...current.transcriptSegments, segment],
+        });
+      } else {
+        await A.updateMeeting(id, {
+          transcript: [current.transcript, transcript]
+            .filter(Boolean)
+            .join("\n\n"),
+        });
+      }
+      if (A.meetingId === id) A.renderEditor(false);
     });
   }
   $("generateSummaryBtn").onclick = () => A.run(() => recap(A.meetingId));
+  $("generateSolutionsBtn").onclick = () => A.run(() => solutions(A.meetingId));
+  $("transcriptRecapBtn").onclick = () =>
+    A.run(async () => {
+      const id = A.meetingId;
+      if (!ZMinutesModel.fullTranscript(A.current()).trim())
+        throw new Error("Transcribe or enter meeting content first.");
+      await recap(id);
+      if (A.meetingId === id) {
+        A.tab = "summary";
+        A.renderEditor();
+      }
+    });
   $("cancelAiBtn").onclick = () => job?.abort();
-  A.ai = { recap, transcribe, quick, pcmSegment };
+  A.ai = { recap, solutions, transcribe, quick, pcmSegment };
 })();

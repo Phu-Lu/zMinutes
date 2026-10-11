@@ -56,14 +56,24 @@
           "Recording-" + r.session.meetingId + ".wav",
         );
       await A.flush();
-      await A.updateMeeting(r.session.meetingId, { audioId });
+      const meeting = A.data.meetings.find((m) => m.id === r.session.meetingId),
+        recording = {
+          id: r.session.id,
+          audioId,
+          createdAt: r.session.created,
+          label: "Recording " + ((meeting?.recordings.length || 0) + 1),
+        };
+      await A.updateMeeting(r.session.meetingId, {
+        audioId,
+        recordings: [...meeting.recordings, recording],
+      });
       await S.discardSession(r.session.id);
       message("Audio saved on this device.");
       if (
         A.data.meetings.find((m) => m.id === r.session.meetingId)
           ?.cloudAudioAllowed
       )
-        A.run(() => A.ai.transcribe(r.session.meetingId, blob));
+        A.run(() => A.ai.transcribe(r.session.meetingId, blob, recording.id));
     } catch (e) {
       message("Recording remains in recovery: " + e.message, true);
       A.notice(
@@ -232,7 +242,19 @@
       const blob = wav(chunks.map((c) => c.bytes));
       if (A.data.meetings.some((m) => m.id === session.meetingId)) {
         const audioId = await S.addMedia(blob, "Recovered recording.wav");
-        await A.updateMeeting(session.meetingId, { audioId });
+        const meeting = A.data.meetings.find((m) => m.id === session.meetingId);
+        await A.updateMeeting(session.meetingId, {
+          audioId,
+          recordings: [
+            ...meeting.recordings,
+            {
+              id: session.id,
+              audioId,
+              createdAt: session.created,
+              label: "Recovered recording " + (meeting.recordings.length + 1),
+            },
+          ],
+        });
         await S.discardSession(id);
       } else A.download(blob, "Recovered-recording.wav");
       await renderRecovery();
@@ -253,15 +275,27 @@
       )
         throw new Error("Choose an audio recording");
       const audioId = await S.addMedia(file, file.name);
-      await A.updateMeeting(id, { audioId });
+      const meeting = A.data.meetings.find((m) => m.id === id),
+        recording = {
+          id: crypto.randomUUID(),
+          audioId,
+          createdAt: Date.now(),
+          label: file.name,
+        };
+      await A.updateMeeting(id, {
+        audioId,
+        recordings: [...meeting.recordings, recording],
+      });
       message("Audio imported and saved.");
       if (A.data.meetings.find((m) => m.id === id)?.cloudAudioAllowed)
-        await A.ai.transcribe(id, file);
+        await A.ai.transcribe(id, file, recording.id);
     });
   };
   $("downloadAudioBtn").onclick = () =>
     A.run(async () => {
-      const item = await S.get("media", A.current()?.audioId);
+      const m = A.current(),
+        recording = m?.recordings.find((r) => r.id === A.selectedRecordingId),
+        item = await S.get("media", recording?.audioId);
       if (item) A.download(item.blob, item.name);
     });
   $("transcribeAgainBtn").onclick = () =>
@@ -271,8 +305,39 @@
         throw new Error(
           "Enable cloud transcription for this meeting in Recap first.",
         );
-      const item = await S.get("media", m.audioId);
-      if (item) await A.ai.transcribe(m.id, item.blob);
+      const recording = m.recordings.find(
+        (r) => r.id === A.selectedRecordingId,
+      );
+      const item = await S.get("media", recording?.audioId);
+      if (item) await A.ai.transcribe(m.id, item.blob, recording.id);
+    });
+  $("recordingList").onclick = (event) =>
+    A.run(async () => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      const id =
+        button.dataset.selectRecording ||
+        button.dataset.transcribeRecording ||
+        button.dataset.downloadRecording;
+      const m = A.current(),
+        recording = m?.recordings.find((r) => r.id === id),
+        item = await S.get("media", recording?.audioId);
+      if (!recording || !item)
+        throw new Error("This recording is not available on this device.");
+      A.selectedRecordingId = id;
+      A.renderEditor(false);
+      if (button.dataset.selectRecording) {
+        const url = await S.mediaURL(recording.audioId);
+        if (!url) throw new Error("Recording audio is unavailable.");
+        $("audioPlayback").src = url;
+        await $("audioPlayback")
+          .play()
+          .catch(() => {});
+      } else if (button.dataset.downloadRecording) {
+        A.download(item.blob, item.name);
+      } else if (button.dataset.transcribeRecording) {
+        await A.ai.transcribe(m.id, item.blob, id);
+      }
     });
   window.addEventListener("zminutes:ready", () => A.run(renderRecovery));
   A.audio = { finish, renderRecovery };

@@ -1,4 +1,4 @@
-# Build 21 verification
+# Build 22 verification
 
 ## Automated
 
@@ -11,12 +11,12 @@ Tests write screenshots/PDFs to ignored `test-results/`. Browser tests do not gr
 
 On Windows Edge/Chrome, Pixel 6 Chrome, and Zebra ET40 Chrome:
 
-1. Confirm Settings shows build 21. Do not clear site storage to update.
+1. Confirm Settings shows build 22 on both devices. Do not clear site storage to update.
 2. Create a meeting, click Record, speak for 15 seconds. Confirm the timer advances, Stop saves, playback is audible, and the downloaded WAV plays outside the app.
 3. Deny mic permission and retry after granting it. Cancel a pending request. Unplug a selected USB mic. Confirm no indefinite loading state.
 4. Record for at least 10 minutes. Switch meeting tabs and stop from the global banner. Test screen lock/background interruption; recover any interrupted audio from Settings.
 5. Install from Chrome's menu, wait for Android completion, find zMinutes in the app drawer, launch standalone, then reopen offline. Browser installation depends on OS/browser eligibility and is not under app control.
-6. Back up both devices before real Drive sync. Edit the same meeting offline on both, sync, resolve in Settings, and confirm both agree without losing local audio.
-7. With your own keys, test Gemini/OpenAI transcription and recap, invalid key, cancellation, and network interruption. No existing recap should disappear on failure.
+6. Back up both devices before real Drive sync. On a newly connected empty device, tap Sync first and verify it does not replace existing Drive data. Edit the same meeting offline on both, sync, resolve in Settings, and confirm both agree without losing local audio. If older data is missing, try Settings → Recover missing data and download a copy before importing.
+7. With your own keys, test Gemini/OpenAI transcription and recap, invalid key, cancellation, and network interruption. Record two clips in one meeting, transcribe both, and verify their order in the combined transcript and recap. Test custom recap prompt, Solutions with internal context and Gemini Google Search sources. No existing recap should disappear on failure.
 
 Do not claim these physical/cloud acceptance checks passed based solely on desktop automation.
