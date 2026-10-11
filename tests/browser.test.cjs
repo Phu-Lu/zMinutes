@@ -374,8 +374,67 @@ const server = http.createServer((req, res) => {
       ),
     );
     await page.unroute("https://generativelanguage.googleapis.com/**");
+    let openaiRequest;
+    await page.route("https://api.openai.com/v1/responses", async (route) => {
+      openaiRequest = route.request().postDataJSON();
+      await route.fulfill({
+        json: {
+          output: [
+            {
+              type: "web_search_call",
+              action: {
+                type: "search",
+                sources: [{ type: "url", url: "https://example.org/evidence" }],
+              },
+            },
+            {
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
+                  text: "Option A uses a phased rollout.",
+                  annotations: [
+                    {
+                      type: "url_citation",
+                      title: "Evidence",
+                      url: "https://example.org/evidence",
+                      end_index: 32,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+    });
+    await page.evaluate(async (id) => {
+      document.getElementById("aiProvider").value = "openai";
+      document.getElementById("aiModel").value = "gpt-4.1-mini";
+      document.getElementById("aiApiKey").value = "test-only";
+      document.getElementById("saveAiSettingsBtn").click();
+      await ZM.ai.solutions(id);
+    }, id);
+    assert.equal(openaiRequest.tools[0].type, "web_search");
+    assert.equal(openaiRequest.tool_choice, "required");
+    assert.ok(openaiRequest.input.includes("First clip transcript"));
+    assert.equal(
+      await page.evaluate(
+        (id) =>
+          ZM.data.meetings.find((m) => m.id === id).solutionSources[0].url,
+        id,
+      ),
+      "https://example.org/evidence",
+    );
+    assert.equal(
+      await page
+        .locator('#solutionOutput a[href="https://example.org/evidence"]')
+        .count(),
+      1,
+    );
+    await page.unroute("https://api.openai.com/v1/responses");
     console.log(
-      "PASS: 44.1 kHz duration and AI results stay with the original meeting",
+      "PASS: multi-clip transcript, custom recap, Gemini and OpenAI grounded solutions",
     );
     const downloadPromise = page.waitForEvent("download");
     await page.locator("#docBtn").click();

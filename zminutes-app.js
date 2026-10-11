@@ -219,6 +219,7 @@
       "B",
       "EM",
       "BR",
+      "A",
     ]);
     const walk = (n) =>
       [...n.childNodes].forEach((c) => {
@@ -226,7 +227,17 @@
           if (!allowed.has(c.tagName))
             c.replaceWith(document.createTextNode(c.textContent));
           else {
+            const href = c.tagName === "A" ? c.getAttribute("href") : "";
             [...c.attributes].forEach((a) => c.removeAttribute(a.name));
+            if (c.tagName === "A") {
+              if (!/^https?:\/\//i.test(href || "")) {
+                c.replaceWith(document.createTextNode(c.textContent));
+                return;
+              }
+              c.setAttribute("href", href);
+              c.setAttribute("target", "_blank");
+              c.setAttribute("rel", "noopener noreferrer");
+            }
             walk(c);
           }
         }

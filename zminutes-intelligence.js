@@ -275,13 +275,13 @@
         throw new Error(
           "Select Gemini, OpenAI, or Ollama in Settings for suggested solutions.",
         );
-      if (m.solutionGrounding && c.provider !== "gemini")
+      if (m.solutionGrounding && c.provider === "ollama")
         throw new Error(
-          "Google Search grounding requires Gemini. Select Gemini or turn off Google Search.",
+          "Offline Ollama has no built-in web search. Turn off web sources to use project data only.",
         );
       const key = c.keys?.[c.provider];
-      if (c.provider === "gemini" && !key)
-        throw new Error("Enter your Gemini API key in Settings.");
+      if ((c.provider === "gemini" || c.provider === "openai") && !key)
+        throw new Error("Enter your selected provider API key in Settings.");
       const project = A.data.projects.find((p) => p.id === m.projectId);
       const related = A.data.meetings
         .filter((item) => item.projectId === m.projectId)
@@ -356,6 +356,90 @@
             title: chunk.web.title || chunk.web.uri,
             url: chunk.web.uri,
           }));
+      } else if (c.provider === "openai") {
+        const response = await request(
+          "https://api.openai.com/v1/responses",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + key,
+            },
+            body: JSON.stringify({
+              model: c.model,
+              input:
+                prompt +
+                "\nFor OpenAI, return plain text with paragraph breaks rather than HTML tags.",
+              store: false,
+              ...(m.solutionGrounding
+                ? {
+                    tools: [{ type: "web_search" }],
+                    tool_choice: "required",
+                    include: ["web_search_call.action.sources"],
+                  }
+                : {}),
+            }),
+          },
+          signal,
+        );
+        const content = (response.output || [])
+          .filter((item) => item.type === "message")
+          .flatMap((item) => item.content || [])
+          .filter((part) => part.type === "output_text");
+        result = content.length
+          ? content
+              .map((part) => {
+                const raw = part.text || "";
+                const annotations = (part.annotations || [])
+                  .filter(
+                    (annotation) =>
+                      annotation.type === "url_citation" &&
+                      /^https?:\/\//i.test(annotation.url || "") &&
+                      Number.isInteger(annotation.end_index),
+                  )
+                  .sort((a, b) => a.end_index - b.end_index);
+                let at = 0;
+                const chunks = [];
+                for (const citation of annotations) {
+                  const end = Math.min(raw.length, citation.end_index);
+                  if (end <= at) continue;
+                  chunks.push(A.esc(raw.slice(at, end)));
+                  chunks.push(` <a href="${A.esc(citation.url)}">[source]</a>`);
+                  at = end;
+                }
+                chunks.push(A.esc(raw.slice(at)));
+                return `<p>${chunks.join("").replace(/\n/g, "<br>")}</p>`;
+              })
+              .join("")
+          : response.output_text || "";
+        const citations = content
+          .flatMap((part) => part.annotations || [])
+          .filter((annotation) => annotation.type === "url_citation")
+          .map((annotation) => ({
+            title: annotation.title || annotation.url,
+            url: annotation.url,
+          }));
+        const searched = (response.output || [])
+          .filter((item) => item.type === "web_search_call")
+          .flatMap((item) => item.action?.sources || [])
+          .map((source) => ({
+            title: source.title || source.url,
+            url: source.url,
+          }));
+        sources = [
+          ...new Map(
+            [...citations, ...searched]
+              .filter((source) => /^https?:\/\//i.test(source.url || ""))
+              .map((source) => [source.url, source]),
+          ).values(),
+        ];
+        if (
+          m.solutionGrounding &&
+          !response.output?.some((item) => item.type === "web_search_call")
+        )
+          throw new Error(
+            "OpenAI did not run web search. Existing solutions were kept.",
+          );
       } else {
         result = await text(m, c, signal, prompt);
       }
