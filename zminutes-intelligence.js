@@ -480,6 +480,106 @@
       if (A.meetingId === id) A.renderEditor(false);
     });
   }
+  function transcriptAction(message, error = false) {
+    const status = $("transcriptActionStatus");
+    status.textContent = message;
+    status.classList.toggle("error", error);
+  }
+  function transcriptText() {
+    const m = A.current();
+    return m ? ZMinutesModel.fullTranscript(m).trim() : "";
+  }
+  function translationChunks(source, limit = 8000) {
+    const chunks = [];
+    for (const line of source.split("\n")) {
+      let rest = line;
+      while (rest.length > limit) {
+        let cut = rest.lastIndexOf(" ", limit);
+        if (cut < limit / 2) cut = limit;
+        chunks.push(rest.slice(0, cut).trim());
+        rest = rest.slice(cut).trimStart();
+      }
+      const last = chunks.at(-1);
+      if (last && last.length + rest.length + 1 <= limit)
+        chunks[chunks.length - 1] = last + "\n" + rest;
+      else if (rest) chunks.push(rest);
+    }
+    return chunks.filter(Boolean);
+  }
+  async function copyText(value) {
+    if (!value) throw new Error("No transcript text to copy yet.");
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const field = document.createElement("textarea");
+      field.value = value;
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.append(field);
+      let copied = false;
+      try { field.select(); copied = !!document.execCommand?.("copy"); }
+      finally { field.remove(); }
+      if (!copied) throw new Error("Clipboard access was blocked. Use Add to Notes instead.");
+    }
+    transcriptAction("Copied to clipboard.");
+  }
+  function addToNotes(value, label) {
+    if (!value) throw new Error("No transcript text to add yet.");
+    A.insertNoteText(label + "\n" + value + "\n", true);
+    transcriptAction("Added to Notes and saved locally.");
+  }
+  function currentTranslation() {
+    const translation = A.translation;
+    return translation?.meetingId === A.meetingId &&
+      translation.source === transcriptText() &&
+      translation.language === $("translationLanguage").value ? translation.text : "";
+  }
+  A.showTranslation = () => {
+    const text = currentTranslation();
+    $("translationPanel").hidden = !text;
+    $("translationOutput").textContent = text;
+  };
+  $("copyTranscriptBtn").onclick = () => A.run(() => copyText(transcriptText()));
+  $("addTranscriptToNotesBtn").onclick = () => A.run(() => addToNotes(transcriptText(), "TRANSCRIPT:"));
+  $("copyTranslationBtn").onclick = () => A.run(() => copyText(currentTranslation()));
+  $("addTranslationToNotesBtn").onclick = () => A.run(() => addToNotes(currentTranslation(), "TRANSLATION (" + $("translationLanguage").value + "):"));
+  $("translationLanguage").onchange = () => A.showTranslation();
+  $("translateTranscriptBtn").onclick = () => A.run(async () => {
+    const id = A.meetingId, source = transcriptText(), language = $("translationLanguage").value;
+    if (!source) throw new Error("Transcribe or enter transcript text first.");
+    transcriptAction("Translating transcript…");
+    $("translateTranscriptBtn").disabled = true;
+    try {
+      await run(id, async (m, c, signal) => {
+        if (c.provider === "quick")
+          throw new Error("Choose Gemini, OpenAI, or local Ollama in Settings to translate.");
+        const chunks = translationChunks(source), translated = [];
+        for (let i = 0; i < chunks.length; i++) {
+          if (signal.aborted) throw new DOMException("Canceled", "AbortError");
+          transcriptAction(`Translating part ${i + 1} of ${chunks.length}…`);
+          const prompt = `Translate the following meeting transcript into ${language}. Preserve speaker labels, order, names, numbers, and decisions. Do not summarize, add commentary, or invent details. Return only plain translated text. This is part ${i + 1} of ${chunks.length}.\n\nTranscript:\n${chunks[i]}`;
+          const part = (await text(m, c, signal, prompt)).trim();
+          if (!part) throw new Error(`The provider returned an empty translation for part ${i + 1}.`);
+          translated.push(part);
+        }
+        const result = translated.join("\n\n");
+        if (!result) throw new Error("The provider returned an empty translation.");
+        if (A.meetingId !== id || transcriptText() !== source) {
+          transcriptAction("Transcript changed during translation. Run Translate again.", true);
+          return;
+        }
+        A.translation = { meetingId: id, source, language, text: result };
+        A.showTranslation();
+        transcriptAction("Translation ready. Review it before copying or adding to Notes.");
+      });
+    } catch (error) {
+      transcriptAction("Translation failed: " + error.message, true);
+      throw error;
+    } finally {
+      $("translateTranscriptBtn").disabled = false;
+    }
+  });
   function pcmSegment(audio, start, count) {
     const bytes = new Uint8Array(count * 2),
       v = new DataView(bytes.buffer),

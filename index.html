@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0078d4" />
   <meta name="description" content="A private, local-first meeting notebook." />
-  <link rel="manifest" href="manifest.webmanifest?v=27" />
+  <link rel="manifest" href="manifest.webmanifest?v=28" />
   <link rel="apple-touch-icon" href="zminutes-icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=27" />
-  <link rel="stylesheet" href="zminutes-v2.css?v=27" />
+  <link rel="stylesheet" href="styles.css?v=28" />
+  <link rel="stylesheet" href="zminutes-v2.css?v=28" />
   <style>
     :root { --ink:#1b1b1f; --muted:#5f636d; --paper:#f3f7fc; --card:#fff; --line:#d9e2ef; --brand:#0078d4; --lime:#d7efff; --danger:#d13438; }
     body { background:linear-gradient(130deg,#edf6ff 0,#f8fbff 42%,#f3f7fc 100%); }
@@ -85,10 +85,12 @@
       <nav class="tabs" aria-label="Meeting content" role="tablist"><button type="button" class="tab active" role="tab" aria-selected="true" data-tab="note">Notes</button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="agenda">Agenda <span id="agendaBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="stakeholders">People <span id="stakeholderBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="field">Field notes <span id="photoBadge" class="badge">0</span></button><button type="button" class="tab" role="tab" aria-selected="false" data-tab="summary">Recap</button></nav>
       <div id="notePanel" class="panel">
         <div class="record-strip"><div><span id="recordDot" class="record-dot"></span><strong id="recordLabel">Not recording</strong><span id="recordTimer">00:00</span></div><button id="recordBtn" class="record-btn" aria-label="Record audio">● <span>Record</span></button></div><p id="recordStatus" class="record-status" role="status" aria-live="polite"></p><label class="audio-upload">↑ Import an audio recording from this device<input id="audioFileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm" hidden></label>
-        <div class="quick-actions"><button class="quick" data-insert="decision">◇ Decision</button><button class="quick" data-insert="task">✓ Action item</button><button class="quick" data-insert="important">! Important</button></div>
+        <div class="quick-actions" role="toolbar" aria-label="Note shortcuts"><button type="button" class="quick" data-insert="decision">◇ Decision</button><button type="button" class="quick" data-insert="task">✓ Action item</button><button type="button" class="quick" data-insert="important">! Important</button></div>
         <audio id="audioPlayback" controls hidden></audio><div class="settings-actions"><button id="downloadAudioBtn" class="secondary" disabled>Download selected audio</button><button id="transcribeAgainBtn" class="secondary" disabled>Transcribe selected audio</button><button id="cancelAiBtn" class="secondary" hidden>Cancel AI request</button></div><div id="recordingList" class="recording-list"></div>
+        <div class="note-toolbar" role="toolbar" aria-label="Format notes"><button type="button" data-format="bold" aria-label="Bold selected text"><strong>B</strong></button><button type="button" data-format="italic" aria-label="Italic selected text"><em>I</em></button><button type="button" data-format="list" aria-label="Bulleted list">• List</button><button type="button" data-format="numbered" aria-label="Numbered list">1. List</button><span>Markdown formatting · select text or place the cursor</span></div>
         <textarea id="noteInput" class="note-input" placeholder="Capture what matters in the meeting…&#10;&#10;Tip: open Agenda to prepare questions before you meet."></textarea>
-        <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Meeting transcript</strong><small id="transcriptStatus">Recording is stored locally</small></div><p id="transcriptText" class="transcript-hint">Each recorded segment is added in order. Generate a recap to use the complete transcript.</p><pre id="transcriptCombined" class="transcript-combined"></pre><label>Manual transcript or corrections<textarea id="transcriptInput" class="transcript-input" placeholder="Type or paste additional transcript here…"></textarea></label><button id="transcriptRecapBtn" class="secondary">Create recap from transcript</button></div>
+        <details class="notes-preview"><summary>Preview formatted notes</summary><div id="notePreview" class="note-preview"></div></details>
+        <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Meeting transcript</strong><small id="transcriptStatus">Recording is stored locally</small></div><p id="transcriptText" class="transcript-hint">Each recorded segment is added in order. Review or move text into Notes while the meeting is in progress.</p><pre id="transcriptCombined" class="transcript-combined"></pre><label>Manual transcript or corrections<textarea id="transcriptInput" class="transcript-input" placeholder="Type or paste additional transcript here…"></textarea></label><div class="transcript-actions"><button id="copyTranscriptBtn" type="button" class="secondary">Copy transcript</button><button id="addTranscriptToNotesBtn" type="button" class="secondary">Add to Notes</button><select id="translationLanguage" aria-label="Translation language"><option value="Vietnamese">Vietnamese</option><option value="English">English</option></select><button id="translateTranscriptBtn" type="button" class="secondary">Translate</button></div><p id="transcriptActionStatus" class="transcript-action-status" role="status" aria-live="polite"></p><div id="translationPanel" class="translation-panel" hidden><strong>Translation draft · review before use</strong><pre id="translationOutput"></pre><div class="transcript-actions"><button id="copyTranslationBtn" type="button" class="secondary">Copy translation</button><button id="addTranslationToNotesBtn" type="button" class="secondary">Add translation to Notes</button></div></div><button id="transcriptRecapBtn" class="secondary">Create recap from transcript</button></div>
       </div>
       <div id="agendaPanel" class="panel hidden"><div class="panel-intro"><h2>Questions & agenda</h2><p>Prepare ahead of time, or add a question while you meet.</p></div><form id="agendaForm" class="add-row"><input id="agendaInput" placeholder="Example: Can we agree on the design deadline?" autocomplete="off"/><button class="primary" type="submit">Add</button></form><div class="agenda-tools"><label class="upload-list"><input id="agendaUpload" type="file" accept=".txt,.csv,text/plain,text/csv" />↑ Import question list</label><small>One question per line. Supports .txt and .csv.</small></div><div id="agendaList" class="check-list"></div></div>
       <div id="fieldPanel" class="panel hidden"><div class="panel-intro"><h2>Field notes</h2><p>Take a photo or attach one, then annotate it on the spot.</p></div><div class="photo-actions"><label class="photo-choice"><input id="photoCameraInput" type="file" accept="image/*" capture="environment" /><span class="camera-icon">⌁</span><strong>Take photo</strong><small>Open your camera</small></label><label class="photo-choice"><input id="photoInput" type="file" accept="image/*" multiple /><span class="camera-icon">▧</span><strong>Choose from device</strong><small>Upload saved images</small></label></div><div id="photoList" class="photo-grid"></div></div>
@@ -117,23 +119,23 @@
       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
       <section class="settings-card"><h2>Recover recordings</h2><p>Audio is checkpointed while recording. Recover saved segments after an interruption.</p><div id="recoveryList"></div></section>
       <section class="settings-card"><h2>Sync conflicts</h2><p id="conflictCount"></p><div id="conflictList"></div></section>
-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 27</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 28</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
     </section>
   </main>
   </div>
   <dialog id="newMeetingDialog"><form id="newMeetingForm"><button class="dialog-close" type="button" value="cancel" aria-label="Close">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><label>Meeting template<select id="meetingTemplateSelect"><option value="">Blank meeting</option><option value="project">Project update</option><option value="site">Site inspection</option><option value="oneonone">1:1 meeting</option></select></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
-  <script src="zminutes-model.js?v=27"></script>
-  <script src="zminutes-repository.js?v=27"></script>
-  <script src="zminutes-app.js?v=27"></script>
-  <script src="zminutes-views.js?v=27"></script>
-  <script src="zminutes-capture.js?v=27"></script>
-  <script src="zminutes-audio.js?v=27"></script>
-  <script src="zminutes-intelligence.js?v=27"></script>
-  <script src="zminutes-exports.js?v=27"></script>
-  <script src="zminutes-sync.js?v=27"></script>
-  <script src="zminutes-recovery.js?v=27"></script>
-  <script src="zminutes-reminders.js?v=27"></script>
-  <script src="zminutes-pwa.js?v=27"></script>
+  <script src="zminutes-model.js?v=28"></script>
+  <script src="zminutes-repository.js?v=28"></script>
+  <script src="zminutes-app.js?v=28"></script>
+  <script src="zminutes-views.js?v=28"></script>
+  <script src="zminutes-capture.js?v=28"></script>
+  <script src="zminutes-audio.js?v=28"></script>
+  <script src="zminutes-intelligence.js?v=28"></script>
+  <script src="zminutes-exports.js?v=28"></script>
+  <script src="zminutes-sync.js?v=28"></script>
+  <script src="zminutes-recovery.js?v=28"></script>
+  <script src="zminutes-reminders.js?v=28"></script>
+  <script src="zminutes-pwa.js?v=28"></script>
 </body>
 </html>

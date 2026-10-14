@@ -39,6 +39,44 @@
         })[c],
     );
   A.current = () => A.data.meetings.find((m) => m.id === A.meetingId);
+  const noteSelection = { meetingId: null, start: 0, end: 0 };
+  function rememberNoteSelection() {
+    const input = $("noteInput");
+    if (!A.current()) return;
+    noteSelection.meetingId = A.meetingId;
+    noteSelection.start = input.selectionStart;
+    noteSelection.end = input.selectionEnd;
+  }
+  A.insertNoteText = (text, atEnd = false) => {
+    const input = $("noteInput"), m = A.current();
+    if (!m) return;
+    const start = atEnd || noteSelection.meetingId !== m.id ? input.value.length : noteSelection.start;
+    const end = atEnd || noteSelection.meetingId !== m.id ? start : noteSelection.end;
+    const prefix = start > 0 && input.value[start - 1] !== "\n" ? "\n" : "";
+    input.setRangeText(prefix + text, start, end, "end");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+    rememberNoteSelection();
+  };
+  A.renderNotePreview = () => {
+    const target = $("notePreview");
+    if (!target || !document.querySelector(".notes-preview")?.open) return;
+    const inline = (line) => A.esc(line)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>");
+    const lines = $("noteInput").value.split("\n");
+    let html = "", list = "";
+    const close = () => { if (list) { html += `</${list}>`; list = ""; } };
+    for (const line of lines) {
+      const bullet = /^\s*[-*] (.*)$/.exec(line), numbered = /^\s*\d+\. (.*)$/.exec(line);
+      const next = bullet ? "ul" : numbered ? "ol" : "";
+      if (next !== list) { close(); if (next) { html += `<${next}>`; list = next; } }
+      if (next) html += `<li>${inline((bullet || numbered)[1])}</li>`;
+      else if (line.trim()) html += `<p>${inline(line)}</p>`;
+    }
+    close();
+    target.innerHTML = html || "<p>No notes yet.</p>";
+  };
   A.safeRead = (key, f = {}) => {
     try {
       return JSON.parse(localStorage.getItem(key) || "null") || f;
@@ -159,6 +197,9 @@
     const m = A.data.meetings.find((m) => m.id === id);
     if (!m) return;
     A.meetingId = id;
+    noteSelection.meetingId = id;
+    noteSelection.start = noteSelection.end = m.note.length;
+    $("transcriptActionStatus").textContent = "";
     A.project = m.projectId;
     A.tab = tab;
     A.render();
@@ -168,6 +209,14 @@
     $("scrim").classList.toggle("show", open);
     $("menuBtn").setAttribute("aria-expanded", String(open));
   };
+  document.addEventListener("selectionchange", () => {
+    if (document.activeElement === $("noteInput")) rememberNoteSelection();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.target.closest("[data-insert], [data-format]"))
+      event.preventDefault();
+  });
+  document.querySelector(".notes-preview").addEventListener("toggle", A.renderNotePreview);
   A.newDialog = (date) => {
     $("newDate").value = date || localDate() + "T09:00";
     $("newMeetingDialog").showModal();
@@ -365,18 +414,42 @@
         return A.reload();
       }
       if (b.dataset.insert) {
-        if (b.dataset.insert === "task") {
-          A.drafts.task = { meetingId: A.meetingId };
-          await A.navigate("tasks");
-          return $("taskTitle").focus();
+        const prefix = {
+          decision: "◇ DECISION: ",
+          task: "✓ ACTION ITEM: ",
+          important: "! IMPORTANT: ",
+        }[b.dataset.insert];
+        if (prefix) A.insertNoteText(prefix);
+        return;
+      }
+      if (b.dataset.format) {
+        const input = $("noteInput"), m = A.current();
+        if (!m) return;
+        const start = noteSelection.meetingId === m.id ? noteSelection.start : input.value.length;
+        const end = noteSelection.meetingId === m.id ? noteSelection.end : start;
+        const selected = input.value.slice(start, end);
+        let replacement, cursor;
+        if (b.dataset.format === "bold" || b.dataset.format === "italic") {
+          const mark = b.dataset.format === "bold" ? "**" : "*";
+          replacement = mark + selected + mark;
+          cursor = selected ? start + replacement.length : start + mark.length;
+        } else {
+          const numbered = b.dataset.format === "numbered";
+          const lineStart = input.value.lastIndexOf("\n", start - 1) + 1;
+          const lineEnd = end > start ? end : input.value.indexOf("\n", start);
+          const to = lineEnd < 0 ? input.value.length : lineEnd;
+          const text = input.value.slice(lineStart, to);
+          replacement = text.split("\n").map((line, i) => (numbered ? `${i + 1}. ` : "- ") + line).join("\n");
+          input.setRangeText(replacement, lineStart, to, "end");
+          cursor = lineStart + replacement.length;
         }
-        const m = A.current();
-        m.note +=
-          "\n" +
-          (b.dataset.insert === "decision" ? "◇ DECISION: " : "! IMPORTANT: ");
-        $("noteInput").value = m.note;
-        A.queue("meetings", m);
-        $("noteInput").focus();
+        if (b.dataset.format === "bold" || b.dataset.format === "italic")
+          input.setRangeText(replacement, start, end, "end");
+        input.setSelectionRange(cursor, cursor);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.focus();
+        rememberNoteSelection();
+        return;
       }
     });
   });
@@ -537,9 +610,12 @@
       m[fields[t.id]] = t.value;
       A.queue("meetings", m);
       if (t.classList.contains("prompt-input")) A.resizePrompts();
-      if (t.id === "transcriptInput")
+      if (t.id === "transcriptInput") {
         $("transcriptCombined").textContent =
           M.fullTranscript(m) || "No transcript yet.";
+        A.showTranslation?.();
+      }
+      if (t.id === "noteInput") A.renderNotePreview();
     }
     if (m && t.dataset.agendaNote) {
       m.agenda.find((a) => a.id === t.dataset.agendaNote).note = t.value;

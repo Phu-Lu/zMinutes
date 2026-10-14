@@ -78,6 +78,51 @@ const server = http.createServer((req, res) => {
     await page
       .locator("#noteInput")
       .fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
+    await page.evaluate(() => {
+      const note = document.getElementById("noteInput");
+      note.focus();
+      note.setSelectionRange(9, 9);
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    await page.locator('[data-insert="decision"]').click();
+    assert.equal(await page.evaluate(() => ZM.tab), "note");
+    assert.match(await page.locator("#noteInput").inputValue(), /^Nội dung \n◇ DECISION: tiếng/);
+    await page.locator('[data-insert="task"]').click();
+    assert.equal(await page.evaluate(() => ZM.tab), "note");
+    assert.match(await page.locator("#noteInput").inputValue(), /✓ ACTION ITEM: /);
+    await page.locator('[data-insert="important"]').click();
+    assert.equal(await page.evaluate(() => ZM.tab), "note");
+    assert.match(await page.locator("#noteInput").inputValue(), /! IMPORTANT: /);
+    await page.locator("#noteInput").fill("Before text after");
+    await page.evaluate(() => {
+      const note = document.getElementById("noteInput");
+      note.focus();
+      note.setSelectionRange(7, 11);
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    await page.locator('[data-format="bold"]').click();
+    assert.equal(await page.locator("#noteInput").inputValue(), "Before **text** after");
+    await page.locator(".notes-preview summary").click();
+    await page.waitForFunction(() => document.getElementById("notePreview").innerHTML.includes("<strong>text</strong>"));
+    assert.match(await page.locator("#notePreview").innerHTML(), /<strong>text<\/strong>/);
+    await page.locator("#noteInput").fill("One\nTwo");
+    await page.evaluate(() => {
+      const note = document.getElementById("noteInput");
+      note.focus();
+      note.setSelectionRange(0, note.value.length);
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    await page.locator('[data-format="numbered"]').click();
+    assert.equal(await page.locator("#noteInput").inputValue(), "1. One\n2. Two");
+    await page.locator("#noteInput").fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
+    await page.locator("#transcriptInput").fill("Supplier said delivery is Friday.");
+    await context.grantPermissions(["microphone", "clipboard-read", "clipboard-write"]);
+    await page.locator("#copyTranscriptBtn").click();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "Supplier said delivery is Friday.");
+    await page.locator("#addTranscriptToNotesBtn").click();
+    assert.match(await page.locator("#noteInput").inputValue(), /TRANSCRIPT:\nSupplier said delivery is Friday\./);
+    await page.locator("#noteInput").fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
+    await page.locator("#transcriptInput").fill("");
     await page.locator('.tabs [data-tab="agenda"]').click();
     await page.locator("#agendaInput").fill("Question one");
     await page.locator("#agendaForm button").click();
@@ -654,6 +699,46 @@ const server = http.createServer((req, res) => {
     console.log(
       "PASS: audio deletion persists while transcripts remain ordered",
     );
+    await page.evaluate(() => {
+      document.getElementById("aiProvider").value = "gemini";
+      document.getElementById("aiModel").value = "gemini-3.5-flash";
+      document.getElementById("aiApiKey").value = "test-only";
+    });
+    let translationPrompt;
+    await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
+      translationPrompt = route.request().postDataJSON().contents[0].parts[0].text;
+      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "Bản dịch cuộc họp." }] } }] } });
+    });
+    await page.locator("#translateTranscriptBtn").click();
+    await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Bản dịch cuộc họp."));
+    assert.match(translationPrompt, /First clip transcript[\s\S]*Transcript for original meeting/);
+    assert.equal(await page.locator("#translationPanel").isVisible(), true);
+    await page.locator("#addTranslationToNotesBtn").click();
+    await page.waitForFunction(() => document.getElementById("noteInput").value.includes("Bản dịch cuộc họp."));
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    await page.evaluate(() => {
+      document.getElementById("translationLanguage").value = "English";
+      document.getElementById("translationLanguage").dispatchEvent(new Event("change"));
+      document.getElementById("aiProvider").value = "openai";
+      document.getElementById("aiModel").value = "gpt-4.1-mini";
+      document.getElementById("aiApiKey").value = "test-only";
+    });
+    assert.equal(await page.locator("#translationPanel").isVisible(), false);
+    let openaiTranslationPrompt;
+    await page.route("https://api.openai.com/v1/responses", async (route) => {
+      openaiTranslationPrompt = route.request().postDataJSON().input;
+      await route.fulfill({ json: { output: [{ content: [{ text: "Meeting translated to English." }] }] } });
+    });
+    await page.locator("#translateTranscriptBtn").click();
+    await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Meeting translated to English."));
+    assert.match(openaiTranslationPrompt, /Translate the following meeting transcript into English/);
+    await page.unroute("https://api.openai.com/v1/responses");
+    await page.evaluate(() => ZM.flush());
+    await page.reload();
+    await page.waitForFunction(() => ZM?.ready);
+    await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
+    assert.match(await page.locator("#noteInput").inputValue(), /TRANSLATION \(Vietnamese\):\nBản dịch cuộc họp\./);
+    console.log("PASS: transcript translation and insert into persisted Notes");
     await page.evaluate(() => ZM.navigate("overview"));
     assert.deepEqual(
       await page.locator("#overviewView .ov-grid h2").allTextContents(),
@@ -717,6 +802,14 @@ const server = http.createServer((req, res) => {
           fullPage: true,
           animations: "disabled",
         });
+      await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2),
+        false,
+        "notes and transcript overflow at " + width,
+      );
+      if (width === 360)
+        await page.screenshot({ path: path.join(root, "test-results", "phone-notes.png"), fullPage: true, animations: "disabled" });
     }
     console.log("PASS: responsive widths 360 / 412 / 800 / 1024 / 1366");
     await page.waitForFunction(() => navigator.serviceWorker.controller);

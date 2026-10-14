@@ -211,6 +211,7 @@
       $("dateInput").value = m.date;
       $("locationInput").value = m.location;
       $("noteInput").value = m.note;
+      A.renderNotePreview();
       $("transcriptInput").value = m.transcript;
       $("summaryPromptInput").value = m.summaryPrompt;
       $("solutionPromptInput").value = m.solutionPrompt;
@@ -266,6 +267,7 @@
     $("solutionGroundingInput").checked = m.solutionGrounding;
     $("transcriptCombined").textContent =
       ZMinutesModel.fullTranscript(m) || "No transcript yet.";
+    A.showTranslation?.();
     $("solutionOutput").innerHTML = m.solutions
       ? A.sanitize(m.solutions)
       : "<p>No suggested solutions yet.</p>";

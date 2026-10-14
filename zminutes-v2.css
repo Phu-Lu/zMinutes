@@ -221,6 +221,80 @@ textarea {
   gap: 8px;
   margin: 12px 0 18px;
 }
+.note-toolbar,
+.transcript-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.note-toolbar {
+  margin: 0 0 9px;
+}
+.note-toolbar button {
+  min-width: 42px;
+  min-height: 40px;
+  border: 1px solid #c9dced;
+  border-radius: 9px;
+  background: #fff;
+  color: #125b91;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.note-toolbar span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.notes-preview {
+  margin: 10px 0 18px;
+  border: 1px solid #d9e5f0;
+  border-radius: 9px;
+  background: #fff;
+}
+.notes-preview summary {
+  padding: 11px 13px;
+  cursor: pointer;
+  color: #125b91;
+  font-weight: 600;
+}
+.note-preview {
+  padding: 0 15px 12px;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.note-preview p { margin: 7px 0; }
+.note-preview ul,.note-preview ol { margin: 7px 0; padding-left: 24px; }
+.transcript-actions { margin: 12px 0; }
+.transcript-actions button,.transcript-actions select { min-height: 42px; }
+.transcript-actions select {
+  border: 1px solid #abc8e0;
+  border-radius: 9px;
+  padding: 8px;
+  background: #fff;
+  color: #173a57;
+}
+.transcript-action-status { min-height: 20px; margin: 8px 0 !important; }
+.transcript-action-status.error { color: #ffd6d6; }
+.translation-panel {
+  border: 1px solid #8dbbe0;
+  border-radius: 9px;
+  padding: 12px;
+  margin: 12px 0;
+  background: #f3f9ff;
+  color: #173a57;
+}
+.translation-panel pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+@media (max-width: 600px) {
+  .note-toolbar span { flex-basis: 100%; }
+  .transcript-actions button { flex: 1 1 auto; }
+}
 .recording-list .file-row {
   flex-wrap: wrap;
   gap: 8px;
@@ -236,9 +310,11 @@ textarea {
   overflow-wrap: anywhere;
   font: inherit;
   background: #f6faff;
+  color: #173a57;
   padding: 12px;
   border-radius: 9px;
 }
+#noteInput { font: 15px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
 .prompt-input {
   min-height: 68px;
   max-height: min(40vh, 360px);
