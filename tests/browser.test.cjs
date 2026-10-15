@@ -754,7 +754,7 @@ const server = http.createServer((req, res) => {
       document.getElementById("translationLanguage").dispatchEvent(new Event("change"));
     });
     await page.route("https://generativelanguage.googleapis.com/**", (route) =>
-      route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "NEW TRANSLATED WAREHOUSE FINDING" }] } }] } }),
+      route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "NEW TRANSLATED WAREHOUSE FINDING. The receiving area has limited space for the next delivery and the current storage layout blocks a loading path. The site team needs to check capacity, mark blocked zones, and confirm a revised layout. Operations should receive the updated plan before the delivery date." }] } }] } }),
     );
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("NEW TRANSLATED"));
@@ -767,22 +767,36 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => ZM.current().summaryType === "quick");
     await page.waitForFunction(() => document.getElementById("summaryOutput").textContent.includes("NEW TRANSLATED WAREHOUSE FINDING"));
     assert.match(await page.locator("#summaryOutput").textContent(), /NEW TRANSLATED WAREHOUSE FINDING/);
-    let refreshedPrompt;
+    let refreshedPrompt, digestPrompt;
     await page.evaluate(() => {
       document.getElementById("aiProvider").value = "gemini";
       document.getElementById("aiModel").value = "gemini-3.5-flash";
       document.getElementById("aiApiKey").value = "test-only";
     });
     await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
-      refreshedPrompt = route.request().postDataJSON().contents[0].parts[0].text;
-      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "### Overview\nNew warehouse finding included.\n\n### Action items\n- Confirm warehouse capacity\n- Send revised plan" }] } }] } });
+      const prompt = route.request().postDataJSON().contents[0].parts[0].text;
+      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: prompt.startsWith("Summarize ONLY") ? "<p>This is about a warehouse issue.</p>" : "<h3>Overview</h3><p>Earlier meeting context.</p>" }] } }] } });
+    });
+    await page.locator("#generateSummaryBtn").click();
+    await page.waitForFunction(() => document.getElementById("recapStatus").textContent.includes("did not summarize"));
+    assert.match(await page.locator("#summaryOutput").textContent(), /NEW TRANSLATED WAREHOUSE FINDING/);
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
+      const prompt = route.request().postDataJSON().contents[0].parts[0].text;
+      if (prompt.startsWith("Summarize ONLY")) digestPrompt = prompt;
+      else refreshedPrompt = prompt;
+      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: prompt.startsWith("Summarize ONLY")
+        ? "- Warehouse finding changes the receiving workflow and needs a capacity check before the next delivery.\n- Confirm the revised storage layout with the site team and record any blocked areas.\n- Send the updated plan to the operations owner after the capacity review."
+        : "<h3>Overview</h3>\nNew warehouse finding included.\n\n### Action items\n- Confirm warehouse capacity\n- Send revised plan" }] } }] } });
     });
     await page.setViewportSize({ width: 412, height: 915 });
     await page.locator("#generateSummaryBtn").click();
     await page.waitForFunction(() => ZM.current().summaryType === "ai");
     assert.match(refreshedPrompt, /NEW TRANSLATED WAREHOUSE FINDING/);
-    assert.equal(await page.locator("#summaryOutput h3").count(), 2);
-    assert.equal(await page.locator("#summaryOutput li").count(), 2);
+    assert.match(digestPrompt, /NEW TRANSLATED WAREHOUSE FINDING/);
+    assert.match(await page.locator("#summaryOutput").textContent(), /changes the receiving workflow/);
+    assert.equal(await page.locator("#summaryOutput h3").count(), 3);
+    assert.equal(await page.locator("#summaryOutput li").count(), 5);
     const phoneRecap = await page.locator("#summaryOutput").evaluate((node) => ({
       right: node.getBoundingClientRect().right,
       viewport: innerWidth,
@@ -794,9 +808,30 @@ const server = http.createServer((req, res) => {
     await page.reload();
     await page.waitForFunction(() => ZM?.ready);
     await page.evaluate((meetingId) => ZM.open(meetingId, "summary"), id);
-    assert.equal(await page.locator("#summaryOutput li").count(), 2);
+    assert.equal(await page.locator("#summaryOutput li").count(), 5);
+    assert.equal(await page.locator("#summaryOutput h3").count(), 3);
+    assert.match(await page.evaluate(() => ZM.formatAiText("<h3>Overview</h3>\nText after HTML.\n\n### Tasks\n- First\n- Second")), /<h3>Overview<\/h3><p>Text after HTML\.<\/p><h3>Tasks<\/h3><ul><li>First<\/li><li>Second<\/li><\/ul>/);
     await page.unroute("https://generativelanguage.googleapis.com/**");
-    console.log("PASS: translated Notes refresh an existing recap; mobile Markdown recap remains structured");
+    let openaiDigestPrompt;
+    await page.evaluate(() => {
+      document.getElementById("aiProvider").value = "openai";
+      document.getElementById("aiModel").value = "gpt-4.1-mini";
+      document.getElementById("aiApiKey").value = "test-only";
+    });
+    await page.route("https://api.openai.com/v1/responses", async (route) => {
+      const prompt = route.request().postDataJSON().input;
+      if (prompt.startsWith("Summarize ONLY")) openaiDigestPrompt = prompt;
+      await route.fulfill({ json: { output: [{ content: [{ text: prompt.startsWith("Summarize ONLY")
+        ? "<ul><li>Check available receiving capacity before delivery because the current area is constrained.</li><li>Mark the blocked loading route and confirm a revised storage layout with the site team.</li><li>Send the agreed layout and timing to operations before the delivery date.</li></ul>"
+        : "<h3>Overview</h3><p>Warehouse coordination is the main topic.</p>" }] }] } });
+    });
+    await page.locator("#generateSummaryBtn").click();
+    await page.waitForFunction(() => document.getElementById("recapStatus").textContent === "Recap saved.");
+    assert.match(openaiDigestPrompt, /NEW TRANSLATED WAREHOUSE FINDING/);
+    assert.match(await page.locator("#summaryOutput").textContent(), /blocked loading route/);
+    assert.equal(await page.locator("#appNotice").isVisible(), false);
+    await page.unroute("https://api.openai.com/v1/responses");
+    console.log("PASS: translated Notes refresh existing Gemini/OpenAI recaps; weak digests fail safely and mobile mixed formatting stays structured");
     await page.evaluate(() => ZM.navigate("overview"));
     assert.deepEqual(
       await page.locator("#overviewView .ov-grid h2").allTextContents(),

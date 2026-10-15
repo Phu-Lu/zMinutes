@@ -139,6 +139,16 @@
       list(m.agenda.filter((a) => !a.done).map((a) => a.text))
     );
   }
+  function noteSources(m) {
+    return (m.noteDoc?.content || [])
+      .filter((block) => block.type === "sourceBlock")
+      .map((block) => ({
+        source: block.attrs?.source || "transcript",
+        language: block.attrs?.language || "",
+        text: ZMinutesModel.noteText({ type: "doc", content: [block] }).trim(),
+      }))
+      .filter((block) => block.text);
+  }
   async function request(url, options, signal) {
     const controller = new AbortController(),
       abort = () => controller.abort(signal.reason);
@@ -163,22 +173,21 @@
     }
   }
   async function text(m, c, signal, override) {
-    const recentSources = (m.noteDoc?.content || [])
-      .filter((block) => block.type === "sourceBlock")
-      .slice(-2)
-      .map((block) => ZMinutesModel.noteText({ type: "doc", content: [block] }))
-      .filter(Boolean);
+    const sources = noteSources(m);
+    const otherNotes = m.noteDoc
+      ? ZMinutesModel.noteText({ type: "doc", content: m.noteDoc.content.filter((block) => block.type !== "sourceBlock") })
+      : m.note;
     const prompt =
       override ||
       (m.summaryPrompt.trim() ||
         "Summarize this meeting accurately in its original language. Return HTML using only h3, p, ul, li, strong. Sections: Overview, Decisions, Action items, Open questions. Do not invent facts.") +
-        "\nInclude new information added to Notes since any previous recap. In particular, reflect recent transcript or translation additions where relevant.\n" +
-        (recentSources.length ? "Recent Notes additions to consider:\n" + recentSources.join("\n\n") + "\n" : "") +
+        "\nUse all current meeting data, not any previous recap. A transcript or translation added to Notes is substantive source material: extract its concrete facts, not just its topic.\n" +
         "\nMeeting data:\n" +
         JSON.stringify({
           title: m.title,
           date: m.date,
-          note: m.note,
+          note: otherNotes,
+          notesAddedFromTranscript: sources,
           transcript: ZMinutesModel.fullTranscript(m),
           agenda: m.agenda,
           people: m.stakeholders,
@@ -245,6 +254,35 @@
       ""
     );
   }
+  async function sourceDigest(m, c, signal) {
+    const sources = noteSources(m);
+    if (!sources.length || c.provider === "quick") return "";
+    const sourceText = sources.map((source, index) =>
+      `Source ${index + 1} (${source.source}${source.language ? ", " + source.language : ""}):\n${source.text}`,
+    ).join("\n\n");
+    const language = sources.at(-1).language || "the meeting's language";
+    const prompt =
+      `Summarize ONLY the following transcript/translation additions to a meeting in ${language}. ` +
+      "These additions must have a substantial, separate place in the recap. Extract concrete points, explanations, decisions or risks actually stated in the source. " +
+      "Do not merely say that the source discusses a topic. If the content is unrelated to the main meeting, say so without omitting its key points. " +
+      "Return only an HTML <ul> with at least three informative <li> items for substantial source text; use fewer only if the source truly contains fewer distinct facts. No invented facts.\n\n" +
+      sourceText;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (signal.aborted) throw new DOMException("Canceled", "AbortError");
+      const raw = await text(m, c, signal, attempt ? prompt + "\n\nYour previous response was too vague. Provide specific points from the source, not a one-sentence topic label." : prompt);
+      const formatted = A.formatAiText(raw);
+      const container = document.createElement("div");
+      container.innerHTML = formatted;
+      const meaningful = container.textContent.trim();
+      const substantial = sourceText.length >= 250;
+      if (meaningful.length >= (substantial ? 90 : 25) &&
+          (!substantial || container.querySelectorAll("li").length >= 2)) {
+        container.querySelectorAll("h3").forEach((heading) => heading.remove());
+        return "<h3>Transcript &amp; translation insights</h3>" + container.innerHTML;
+      }
+    }
+    throw new Error("AI did not summarize the added transcript in enough detail. The previous recap was kept; try again or adjust the model/prompt.");
+  }
   async function run(id, work) {
     if (job)
       throw new Error("An AI request is already running. Wait or cancel it.");
@@ -282,6 +320,7 @@
     box.hidden = false;
   }
   async function recap(id, requireTranscript = false) {
+    A.notice("");
     recapStatus(id, "Generating recap…", "working");
     try {
       await run(id, async (m, c, signal) => {
@@ -289,11 +328,16 @@
           throw new Error("Transcribe or enter meeting content first.");
         const result = await text(m, c, signal);
         if (signal.aborted) throw new DOMException("Canceled", "AbortError");
-        const summary = A.formatAiText(result);
+        let summary = A.formatAiText(result);
         const visible = document.createElement("div");
         visible.innerHTML = summary;
         if (!visible.textContent.trim())
           throw new Error("The provider returned an empty recap");
+        if (noteSources(m).length && c.provider !== "quick") {
+          $("aiStatus").textContent = "Summarizing added transcript…";
+          summary += await sourceDigest(m, c, signal);
+        }
+        if (signal.aborted) throw new DOMException("Canceled", "AbortError");
         await A.updateMeeting(id, {
           summary,
           summaryType: c.provider === "quick" ? "quick" : "ai",

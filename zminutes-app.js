@@ -259,38 +259,50 @@
       .replace(/\r?\n?```\s*$/, "")
       .trim();
     if (!value) return "";
-    if (/<\/?[a-z][^>]*>/i.test(value)) {
-      const normalized = value
-        .replace(/<(\/?)h[1-6](?=[\s>])/gi, "<$1h3")
-        .replace(/<(\/?)div(?=[\s>])/gi, "<$1p")
-        .replace(/<(\/?)section(?=[\s>])/gi, "<$1p");
-      return A.sanitize(normalized);
-    }
     const inline = (line) => A.esc(line.trim()).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-    const html = [];
-    let list = "";
-    const closeList = () => {
-      if (list) html.push(`</${list}>`);
-      list = "";
-    };
-    for (const line of value.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed) { closeList(); continue; }
-      const heading = trimmed.match(/^#{1,6}\s+(.+)$/);
-      if (heading) { closeList(); html.push(`<h3>${inline(heading[1])}</h3>`); continue; }
-      const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
-      const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
-      if (bullet || numbered) {
-        const kind = bullet ? "ul" : "ol";
-        if (list !== kind) { closeList(); html.push(`<${kind}>`); list = kind; }
-        html.push(`<li>${inline((bullet || numbered)[1])}</li>`);
-        continue;
+    const plain = (block) => {
+      const html = [];
+      let list = "";
+      const closeList = () => {
+        if (list) html.push(`</${list}>`);
+        list = "";
+      };
+      for (const line of block.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed) { closeList(); continue; }
+        const heading = trimmed.match(/^#{1,6}\s+(.+)$/) ||
+          trimmed.match(/^(Overview|Decisions|Action items|Open questions|Transcript (?:&|and) translation insights)\s*:\s*$/i);
+        if (heading) { closeList(); html.push(`<h3>${inline(heading[1])}</h3>`); continue; }
+        const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
+        const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+        if (bullet || numbered) {
+          const kind = bullet ? "ul" : "ol";
+          if (list !== kind) { closeList(); html.push(`<${kind}>`); list = kind; }
+          html.push(`<li>${inline((bullet || numbered)[1])}</li>`);
+          continue;
+        }
+        closeList();
+        html.push(`<p>${inline(trimmed)}</p>`);
       }
       closeList();
-      html.push(`<p>${inline(trimmed)}</p>`);
-    }
-    closeList();
-    return A.sanitize(html.join(""));
+      return html.join("");
+    };
+    if (!/<\/?[a-z][^>]*>/i.test(value)) return A.sanitize(plain(value));
+    const normalized = value
+      .replace(/<(\/?)h[1-6](?=[\s>])/gi, "<$1h3")
+      .replace(/<(\/?)div(?=[\s>])/gi, "<$1p")
+      .replace(/<(\/?)section(?=[\s>])/gi, "<$1p");
+    const template = document.createElement("template");
+    template.innerHTML = normalized;
+    const html = [...template.content.childNodes].map((node) => {
+      if (node.nodeType === Node.TEXT_NODE) return plain(node.textContent || "");
+      if (node.nodeType !== Node.ELEMENT_NODE) return "";
+      if (node.tagName === "P" && node.children.length === 0 &&
+          /(?:^|\n)\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)/.test(node.textContent))
+        return plain(node.textContent);
+      return node.outerHTML;
+    }).join("");
+    return A.sanitize(html);
   };
   A.renderConflicts = async () => {
     const conflicts = ZMinutesModel.reduce(await S.all("journal")).conflicts;
