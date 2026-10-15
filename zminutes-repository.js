@@ -216,6 +216,7 @@
   async function put(kind, value, parents) {
     return serial(async () => {
       value = M.normalize(kind, value);
+      const protocol = (await get("meta", "drive-v3-cutover")) ? "v3" : "v2";
       const key = M.key(kind, value.id),
         old = await get("entities", key),
         id = crypto.randomUUID(),
@@ -226,6 +227,7 @@
           parents: parents || old?.heads || [],
           value: M.publicValue(kind, value),
           uploaded: false,
+          protocol,
         };
       const heads = [
         ...(old?.heads || []).filter((h) => !op.parents.includes(h)),
@@ -242,11 +244,48 @@
       return value;
     });
   }
+  async function migrateNote(id, doc) {
+    return serial(async () => {
+      const key = M.key("meetings", id), old = await get("entities", key);
+      if (!old?.value) throw new Error("Meeting no longer exists");
+      if (old.value.noteDoc) return { value: old.value, heads: old.heads };
+      const original = String(old.value.note || "");
+      const backupKey = "note-migration-v1:" + id;
+      const priorBackup = await get("meta", backupKey);
+      if (!priorBackup)
+        await transaction(["meta"], (tx) => tx.objectStore("meta").put({
+          meetingId: id, title: old.value.title, markdown: original,
+          savedAt: Date.now(),
+        }, backupKey));
+      const value = M.normalize("meetings", {
+        ...old.value,
+        noteDoc: M.noteDoc(doc),
+        noteOriginalMarkdown: original,
+        updated: Date.now(),
+      });
+      const op = { id: crypto.randomUUID(), kind: "meetings", entityId: id,
+        parents: old.heads || [], value: M.publicValue("meetings", value), uploaded: false,
+        protocol: (await get("meta", "drive-v3-cutover")) ? "v3" : "v2" };
+      const heads = [op.id];
+      await transaction(["entities", "journal"], (tx) => {
+        tx.objectStore("entities").put({ kind: "meetings", id, value, heads }, key);
+        tx.objectStore("journal").put(op, op.id);
+      });
+      notify();
+      return { value, heads };
+    });
+  }
+  async function noteMigrationBackups() {
+    return (await all("meta")).filter((value) =>
+      value && typeof value.meetingId === "string" &&
+      typeof value.markdown === "string" && Number.isFinite(value.savedAt));
+  }
   async function remove(kind, id) {
     return serial(async () => {
       if (kind === "projects" && id === "inbox")
         throw new Error("Personal Workspace cannot be deleted");
       const old = await get("entities", M.key(kind, id)),
+        protocol = (await get("meta", "drive-v3-cutover")) ? "v3" : "v2",
         op = {
           id: crypto.randomUUID(),
           kind,
@@ -254,6 +293,7 @@
           parents: old?.heads || [],
           value: null,
           uploaded: false,
+          protocol,
         };
       await transaction(["entities", "journal"], (tx) => {
         tx.objectStore("entities").put(
@@ -324,7 +364,7 @@
       const a = await get("media", f.mediaId);
       if (a) f.data = await toDataURL(a.blob);
     }
-    return { app: "zMinutes", version: 2, ...data };
+    return { app: "zMinutes", version: 3, ...data };
   }
   async function restore(raw) {
     const data = M.validateBackup(raw),
@@ -342,6 +382,7 @@
         }
       }
     return serial(async () => {
+      const protocol = (await get("meta", "drive-v3-cutover")) ? "v3" : "v2";
       const old = await all("entities"),
         ops = [],
         rows = [];
@@ -358,6 +399,7 @@
               parents: prior?.heads || [],
               value: M.publicValue(kind, value),
               uploaded: false,
+              protocol,
             };
           ops.push(op);
           rows.push({ kind, id, value, heads: [op.id] });
@@ -375,6 +417,7 @@
   async function importMissing(raw) {
     const data = M.validateBackup(raw);
     return serial(async () => {
+      const protocol = (await get("meta", "drive-v3-cutover")) ? "v3" : "v2";
       const existing = new Map(
           (await all("entities")).map((row) => [M.key(row.kind, row.id), row]),
         ),
@@ -397,6 +440,7 @@
             parents: prior?.heads || [],
             value: M.publicValue(kind, value),
             uploaded: false,
+            protocol,
           });
         }
       }
@@ -414,7 +458,25 @@
   async function pending() {
     return (await all("journal")).filter((o) => !o.uploaded);
   }
-  async function bundle(ops) {
+  async function pendingV3() {
+    return (await pending()).filter((o) => o.protocol === "v3");
+  }
+  async function cutoverV3() {
+    return serial(async () => {
+      if (await get("meta", "drive-v3-cutover")) return;
+      const rows = await all("entities");
+      const ops = rows.map((row) => ({ id: crypto.randomUUID(), kind: row.kind,
+        entityId: row.id, parents: [], value: M.publicValue(row.kind, row.value),
+        uploaded: false, protocol: "v3" }));
+      await transaction(["entities", "journal", "meta"], (tx) => {
+        rows.forEach((row, i) => tx.objectStore("entities").put({ ...row, heads: [ops[i].id] }, M.key(row.kind, row.id)));
+        ops.forEach((op) => tx.objectStore("journal").put(op, op.id));
+        tx.objectStore("meta").put(true, "drive-v3-cutover");
+      });
+      notify();
+    });
+  }
+  async function bundle(ops, protocol = "v2") {
     const media = {},
       ids = new Set();
     for (const op of ops)
@@ -426,7 +488,7 @@
     }
     return {
       app: "zMinutes",
-      format: "changes-v2",
+      format: "changes-" + protocol,
       ops: ops.filter((o) => o.kind !== "files").map(({ uploaded, ...o }) => o),
       media,
     };
@@ -455,12 +517,12 @@
       return legacy.length;
     });
   }
-  async function merge(bundles) {
+  async function merge(bundles, protocol = "v2") {
     const media = [];
     for (const b of bundles) {
       if (
         b?.app !== "zMinutes" ||
-        b.format !== "changes-v2" ||
+        b.format !== "changes-" + protocol ||
         !Array.isArray(b.ops)
       )
         throw new Error("Invalid Drive changes");
@@ -476,7 +538,7 @@
       }
     }
     return serial(async () => {
-      const known = await all("journal"),
+      const known = (await all("journal")).filter((o) => (o.protocol || "v2") === protocol),
         old = await all("entities"),
         byId = new Map(known.map((o) => [o.id, o]));
       for (const b of bundles)
@@ -490,6 +552,7 @@
             ...o,
             value: M.publicValue(o.kind, o.value),
             uploaded: true,
+            protocol,
           });
         }
       const reduced = M.reduce([...byId.values()]);
@@ -548,6 +611,8 @@
     init,
     snapshot,
     put,
+    migrateNote,
+    noteMigrationBackups,
     remove,
     addMedia,
     removeMediaIfUnreferenced,
@@ -556,6 +621,8 @@
     restore,
     importMissing,
     pending,
+    pendingV3,
+    cutoverV3,
     bundle,
     acknowledge,
     republishLegacy,

@@ -5,7 +5,8 @@
     M = ZMinutesModel,
     $ = A.$;
   let versions = [],
-    preview = null;
+    preview = null,
+    legacyCandidates = [];
   const report = (message) => ($("recoveryStatus").textContent = message);
   const counts = (raw) => {
     const data = M.validateBackup(raw);
@@ -143,13 +144,59 @@
         : "No older zMinutes snapshot is visible to this Google account and OAuth Client ID. Check Drive directly for zminutes-sync.json or a downloaded backup.",
     );
   }
+  async function scanLegacyChanges() {
+    await A.flush();
+    await A.sync.prepareRecovery();
+    const baseline = new Set((await S.get("meta", "drive-v2-cutover-files")) || []);
+    const files = await A.sync.list(
+      "trashed=false and appProperties has { key='zminutes' and value='changes-v2' }",
+    );
+    legacyCandidates = [];
+    for (const file of files.filter((item) => !baseline.has(item.id))) {
+      const bundle = await A.sync.api("drive/v3/files/" + encodeURIComponent(file.id) + "?alt=media");
+      if (bundle?.app !== "zMinutes" || bundle.format !== "changes-v2") continue;
+      for (const op of bundle.ops || []) {
+        if (!op.value || !["meetings", "tasks", "fieldNotes"].includes(op.kind)) continue;
+        try {
+          M.normalize(op.kind, op.value);
+          legacyCandidates.push({ kind: op.kind, value: op.value, media: bundle.media || {},
+            modifiedTime: file.modifiedTime });
+        } catch {}
+      }
+    }
+    $("dataRecoveryList").innerHTML = legacyCandidates.map((item, i) =>
+      `<div class="file-row"><span>${A.esc(item.kind)} · ${A.esc(item.value.title || "Untitled")} · ${A.esc(item.modifiedTime || "")}</span><button class="secondary" data-import-legacy="${i}">Import as copy</button></div>`,
+    ).join("");
+    report(legacyCandidates.length
+      ? "Older-app changes are read-only here. Importing creates a separate copy; current records stay untouched."
+      : "No older-app changes need review. If an old device has unsynced work, update and sync it first.");
+  }
   $("scanLocalHistoryBtn").onclick = () => A.run(scanLocal);
   $("scanDriveHistoryBtn").onclick = () => A.run(scanDrive);
+  $("scanLegacyChangesBtn").onclick = () => A.run(scanLegacyChanges);
   $("dataRecoveryList").onclick = (event) =>
     A.run(async () => {
       const button = event.target.closest("button");
       if (!button) return;
-      if (button.dataset.previewVersion !== undefined) {
+      if (button.dataset.importLegacy !== undefined) {
+        const item = legacyCandidates[Number(button.dataset.importLegacy)];
+        if (!item) throw new Error("Older-app change not found");
+        await A.flush();
+        const value = M.normalize(item.kind, item.value);
+        const photos = [];
+        for (const photo of value.photos || []) {
+          const attachment = item.media[photo.mediaId];
+          if (!attachment?.data?.startsWith("data:image/"))
+            throw new Error("This older-app change is missing an image. No copy was imported.");
+          photos.push({ ...photo, mediaId: await S.addMedia(
+            await (await fetch(attachment.data)).blob(), attachment.name || "Recovered photo") });
+        }
+        await A.save(item.kind, { ...value, id: crypto.randomUUID(),
+          projectId: A.data.projects.some((p) => p.id === value.projectId) ? value.projectId : "inbox",
+          title: (value.title || "Untitled") + " (Recovered copy)",
+          ...(value.photos ? { photos } : {}) });
+        report("Recovered as a separate copy. The original and current records remain unchanged.");
+      } else if (button.dataset.previewVersion !== undefined) {
         const v = versions[Number(button.dataset.previewVersion)];
         if (!v) throw new Error("Drive version not found");
         const raw = await A.sync.api(

@@ -1,0 +1,208 @@
+/* zMinutes UI pass: visual structure only. State and persistence stay in the existing modules. */
+:root {
+  --ink: #202d3a;
+  --muted: #657789;
+  --paper: #f6f8fb;
+  --line: #e1e7ee;
+  --brand: #0877c9;
+}
+html { scroll-behavior: smooth; }
+body { background: var(--paper); color: var(--ink); }
+button, input, select, textarea { font-family: inherit; }
+button:focus-visible, a:focus-visible, summary:focus-visible, label[role="button"]:focus-visible { outline: 3px solid #80c4f1; outline-offset: 2px; }
+.app .shell { max-width: 1560px; padding: 0 30px 56px; }
+.sb-panel { background: #fff; border-right-color: var(--line); }
+.sb-head .brand { letter-spacing: -.5px; }
+.proj.current > .proj-head { background: #e9f3fb; }
+.nav-item.active { background: #e6f1fb; }
+.new-project { border-style: solid; background: #fff; }
+
+/* Global actions: primary work remains visible, occasional actions live under More. */
+.app .topbar { min-height: 68px; height: auto; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: #ffffffef; box-shadow: none; }
+.top-left, .top-actions { min-width: 0; }
+.top-actions { flex-wrap: nowrap; align-items: center; gap: 5px; }
+.top-actions > .ghost, .top-actions > .secondary, .top-actions > .primary { min-height: 40px; white-space: nowrap; }
+.top-actions .sync-state { max-width: 170px; overflow: hidden; text-overflow: ellipsis; margin-right: 5px; }
+.top-actions #syncBtn { color: #176ba7; }
+.top-actions #newMeetingBtn { box-shadow: none; }
+.top-more { position: relative; flex: none; }
+.top-more > summary { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 9px; color: #51677c; font-size: 18px; font-weight: 700; list-style: none; cursor: pointer; }
+.top-more > summary::-webkit-details-marker { display: none; }
+.top-more[open] > summary, .top-more > summary:hover { background: #eaf3fa; color: #006bb7; }
+.top-more-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; display: grid; min-width: 205px; padding: 6px; border: 1px solid #dce7f1; border-radius: 12px; background: #fff; box-shadow: 0 14px 35px #1c3d5b24; }
+.top-more-menu button { width: 100%; min-height: 40px; text-align: left; color: #2d4358; }
+.top-more-menu button:hover { background: #edf5fb; }
+.crumbs { color: #5f7589; overflow: hidden; text-overflow: ellipsis; }
+
+/* Shared hierarchy across project and meeting screens. */
+.ov-head, .sec-head, .settings-heading { margin-top: 28px; }
+.ov-head h1, .sec-head h1, .settings-heading h1 { color: #1c2d3e; font-size: clamp(26px, 3vw, 34px); font-weight: 750; letter-spacing: -.9px; }
+.ov-head p, .sec-head p, .settings-heading > p:last-child { color: #687c8d; font-size: 13px; }
+.ov-icon { width: 52px; height: 52px; border-radius: 14px; }
+.ov-stats { gap: 12px; }
+.stat { gap: 13px; min-height: 118px; padding: 17px; border-radius: 14px; box-shadow: none; }
+.stat.blue, .stat.amber, .stat.green { background: #fff; border-color: var(--line); }
+.stat-ic { width: 42px; height: 42px; border-radius: 11px; }
+.stat-label { color: #52697b; font-size: 13px; }
+.stat-num { font-size: 29px; line-height: 1.1; }
+.stat-sub { display: inline-block; margin-top: 3px; font-size: 11px; }
+.ov-grid { gap: 14px; margin-top: 14px; }
+.ov-col { gap: 14px; }
+.ov-card, .settings-card { border-color: var(--line); border-radius: 14px; box-shadow: none; }
+.ov-card { padding: 20px; }
+.ov-card h2, .ov-card-head h2 { color: #263d50; font-size: 17px; }
+.calendar-entry { grid-template-columns: 112px minmax(0, 1fr); align-items: center; padding: 11px 0; }
+.calendar-entry span { color: #687d90; font-size: 12px; }
+.calendar-entry strong { font-weight: 650; }
+.calendar-entry small { grid-column: 2; font-size: 11px; }
+.act small { display: block; margin-top: 4px; color: #718397; }
+
+/* Meeting list: one readable row per meeting, including an explicit date line. */
+#homeView .hero { display: none; }
+#homeView .section-head { margin: 14px 0 12px; align-items: center; }
+#homeView .section-head h2 { display: none; }
+#homeView .section-head input { width: min(100%, 300px); min-height: 42px; border-color: #dce5ee; }
+.meeting-list, .app .meeting-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; overflow: visible; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.meeting-card { min-width: 0; border: 0; border-bottom: 1px solid #edf1f5; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.meeting-card:last-child { border-bottom: 0; }
+.meeting-card:hover { transform: none; border-color: #edf1f5; background: #f8fbfe; box-shadow: none; }
+.meeting-card .card-main { min-width: 0; gap: 13px; padding: 13px 17px; }
+.meeting-date { width: 42px; height: 42px; flex: none; font: 700 16px system-ui; border-radius: 10px; }
+.meeting-info { min-width: 0; }
+.meeting-info strong { color: #24394b; font-size: 14px; }
+.meeting-info small { color: #6c7e90; font-size: 12px; line-height: 1.35; white-space: normal; }
+.meeting-open { margin-left: auto; color: #8da6ba; font-size: 22px; }
+.meeting-menu { position: relative; align-self: center; margin-right: 9px; }
+.meeting-menu > summary { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; color: #657a8c; font-weight: 700; cursor: pointer; list-style: none; }
+.meeting-menu > summary::-webkit-details-marker { display: none; }
+.meeting-menu > summary:hover, .meeting-menu[open] > summary { background: #eaf3fa; }
+.meeting-menu > div { position: absolute; right: 0; top: 100%; z-index: 15; min-width: 160px; padding: 5px; border: 1px solid #dae5ee; border-radius: 9px; background: #fff; box-shadow: 0 12px 30px #254e762b; }
+.meeting-menu .delete-btn { width: 100%; color: #ad3336; font-size: 12px; text-align: left; }
+
+/* Meeting detail, including all five existing feature tabs. */
+.meeting-header { align-items: start; gap: 12px; padding-top: 27px; }
+.meeting-header > div:first-child { min-width: 0; flex: 1; }
+.title-input { color: #1b2c3c; font-size: clamp(26px, 3vw, 32px); font-weight: 750; }
+.meta-row { align-items: center; flex-wrap: wrap; gap: 10px; }
+.meta-row input, .meta-row select { min-height: 37px; padding: 6px 9px; border: 1px solid #e0e8ef; border-radius: 8px; background: #fff; }
+.tabs { gap: 17px; margin-top: 11px; border-color: #dce6ef; }
+.tabs .tab { padding: 11px 3px 12px; min-height: 45px; color: #5f7387; font-size: 13px; font-weight: 600; }
+.tabs .tab.active { color: #006bb8; border-bottom-width: 3px; }
+.badge { margin-left: 3px; }
+.panel:not(.notes-workspace) { max-width: none; background: #fff; border-color: var(--line); box-shadow: none; }
+.panel-intro h2 { color: #243a4d; font-size: 19px; }
+.panel-intro p { font-size: 13px; }
+.panel-intro:not(.split)::after { display: none; }
+.add-row { display: flex; flex-wrap: wrap; }
+.add-row input { flex: 1 1 180px; min-height: 43px; }
+.add-row .primary { flex: none; }
+.agenda-tools { flex-wrap: wrap; }
+.agenda-item { border-color: #e2e9ef; background: #fcfdff; }
+.agenda-note { min-height: 52px; font-size: 13px; }
+.photo-choice { min-height: 116px; border-color: #bfd4e6; border-radius: 11px; background: #fbfdff; }
+.photo-choice strong { font-size: 13px; }
+.photo-card { border-radius: 11px; box-shadow: none; }
+.photo-card img { height: 155px; }
+.stakeholder-row { border-color: #e3eaf0; }
+#summaryPanel > details { border: 1px solid #e1e9f0; border-radius: 10px; padding: 0 13px; }
+#summaryPanel > details summary { min-height: 43px; display: flex; align-items: center; color: #386788; cursor: pointer; font-weight: 650; }
+#summaryPanel .summary-output { min-height: 120px; padding: 18px; box-shadow: none; }
+#summaryPanel .summary-output.empty { place-content: center start; }
+.solution-panel { border-top: 1px solid #e1e8ef; margin-top: 23px; padding-top: 21px; }
+.export-row { border-top: 1px solid #e4ebf1; padding-top: 16px; }
+
+/* Project utilities share compact headings, forms and row styling. */
+.task-create, .field-create { margin-bottom: 13px; }
+.task-card, .field-card, .file-row { border-color: #e4ebf1; }
+.task-card { min-height: 64px; }
+.field-card { background: #fcfdff; }
+.calendar-card { max-width: none; }
+.cal-day { min-height: 52px; border-radius: 8px; }
+
+/* Settings: a real information architecture, not one undifferentiated form. */
+.settings-heading { margin-bottom: 18px; }
+.settings-toc { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 18px; }
+.settings-toc a { display: inline-flex; align-items: center; min-height: 36px; padding: 7px 12px; border: 1px solid #dce7f0; border-radius: 8px; background: #fff; color: #3c607c; font-size: 12px; font-weight: 650; text-decoration: none; }
+.settings-toc a:hover { border-color: #8dbfe5; background: #edf6fd; }
+.settings-groups { display: grid; gap: 24px; }
+.settings-group { scroll-margin-top: 88px; }
+.settings-group-heading { display: flex; align-items: baseline; gap: 12px; margin: 0 0 10px; }
+.settings-group-heading > span { color: #0c79c5; font: 700 11px ui-monospace, monospace; }
+.settings-group-heading h2 { margin: 0; color: #263d50; font-size: 17px; }
+.settings-group-heading p { margin: 3px 0 0; color: #718396; font-size: 12px; }
+.settings-card { max-width: none; margin-bottom: 10px; padding: 19px 21px; }
+.settings-card h2, .settings-card-head h2 { font-size: 16px; }
+.settings-card-head { margin-bottom: 13px; }
+.settings-card-head p { font-size: 12px; }
+.settings-grid label { color: #4e6377; font-size: 12px; }
+.settings-help { font-size: 11px; }
+.settings-actions { margin-top: 14px; }
+.settings-consent { max-width: none; }
+.drive-settings-card { margin-top: 0; }
+
+@media (min-width: 1180px) {
+  .settings-groups { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  #settings-ai { grid-column: 1; grid-row: 1 / 3; }
+  #settings-device { grid-column: 2; grid-row: 1; }
+  #settings-data { grid-column: 2; grid-row: 2; }
+}
+@media (max-width: 1099px) {
+  .app .shell { padding-inline: 20px; }
+  .top-actions .sync-state { display: none; }
+  .ov-stats { gap: 9px; }
+}
+@media (max-width: 799px) {
+  .app .topbar { flex-wrap: nowrap; gap: 6px; padding: 7px 0 !important; }
+  .top-left { flex: 1 1 auto !important; }
+  .top-actions { flex: 0 0 auto !important; justify-content: flex-end; }
+  .top-actions #syncBtn span, .top-actions #installBtn .install-label { display: none; }
+  .top-actions #syncBtn, .top-actions #installBtn { min-width: 40px; padding: 7px; }
+  .top-actions #syncBtn, .top-actions #installBtn { font-size: 18px; }
+  .ov-head, .sec-head, .settings-heading { margin-top: 20px; }
+  .tabs { gap: 13px; }
+  .panel:not(.notes-workspace) { padding: 18px; }
+  .settings-groups { grid-template-columns: 1fr; }
+}
+@media (max-width: 599px) {
+  .app .shell { padding-inline: 14px; }
+  .app .topbar { margin-inline: -14px; padding-inline: 13px !important; }
+  .top-left { gap: 3px; }
+  .top-brand { font-size: 14px !important; gap: 5px; }
+  .top-brand .brand-mark { width: 29px; height: 29px; }
+  .top-actions { gap: 1px; }
+  .top-actions #aiSettingsBtn { display: none; }
+  .top-actions #syncBtn { display: inline-flex; align-items: center; justify-content: center; }
+  .top-actions .top-more-menu .ghost { display: block; }
+  .top-actions #newMeetingBtn { width: 40px; min-width: 40px; padding: 8px; }
+  .top-actions #newMeetingBtn span { display: none; }
+  .top-more > summary { width: 36px; }
+  .ov-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .stat { display: grid; justify-items: start; gap: 4px; min-height: 114px; padding: 10px; }
+  .stat-ic { width: 29px; height: 29px; border-radius: 8px; font-size: 14px; }
+  .stat-label { font-size: 11px; }
+  .stat-num { font-size: 24px; }
+  .stat-sub { display: none; }
+  .ov-card { padding: 15px; }
+  #homeView .section-head { align-items: stretch; }
+  #homeView .section-head input { width: 100%; }
+  .meeting-card .card-main { padding: 11px; gap: 10px; }
+  .meeting-info small { font-size: 11px; }
+  .meeting-open { display: none; }
+  .meeting-menu { margin-right: 4px; }
+  .meeting-header { padding-top: 17px; }
+  .title-input { font-size: 25px; }
+  .meta-row { flex-direction: row; gap: 6px; }
+  .meta-row input, .meta-row select { flex: 1 1 150px; min-width: 0; }
+  .tabs { margin-inline: -14px; padding-inline: 14px; gap: 12px; }
+  .panel:not(.notes-workspace) { padding: 15px; }
+  .panel-intro.split { display: flex; flex-wrap: wrap; }
+  .panel-intro.split .primary { margin-top: 3px; }
+  .photo-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .photo-choice { min-height: 105px; padding: 10px; }
+  .calendar-entry { grid-template-columns: 87px minmax(0, 1fr); }
+  .settings-card { padding: 15px; }
+  .settings-toc { gap: 5px; }
+  .settings-toc a { padding-inline: 8px; font-size: 11px; }
+  .settings-actions > * { flex: 1 1 auto; }
+  .settings-actions > span { flex-basis: 100%; }
+}

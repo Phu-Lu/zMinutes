@@ -365,3 +365,64 @@ test("malformed remote values cannot become silent deletions", async () => {
   );
   assert.equal((await S.snapshot()).meetings[0].title, "Keep");
 });
+test("rich Notes migration saves original first, is idempotent, and survives backup", async () => {
+  const { store: S } = repository();
+  await S.init();
+  await S.put("meetings", { id: "rich", title: "Original", note: "**Bold**\n✓ ACTION ITEM: Call back" });
+  const doc = { type: "doc", content: [
+    { type: "paragraph", content: [{ type: "text", text: "Bold", marks: [{ type: "bold" }] }] },
+    { type: "noteCallout", attrs: { kind: "task" }, content: [{ type: "text", text: "Call back" }] },
+  ] };
+  const first = await S.migrateNote("rich", doc);
+  assert.equal(first.value.noteOriginalMarkdown, "**Bold**\n✓ ACTION ITEM: Call back");
+  assert.match(first.value.note, /✓ ACTION ITEM: Call back/);
+  assert.equal((await S.noteMigrationBackups()).length, 1);
+  assert.equal(JSON.stringify((await S.migrateNote("rich", doc)).heads), JSON.stringify(first.heads));
+  assert.equal((await S.noteMigrationBackups()).length, 1);
+  const backup = await S.portable();
+  assert.equal(backup.version, 3);
+  const { store: T } = repository();
+  await T.init();
+  await T.restore(backup);
+  const restored = (await T.snapshot()).meetings.find((item) => item.id === "rich");
+  assert.equal(restored.noteDoc.content[1].attrs.kind, "task");
+  assert.equal(restored.noteOriginalMarkdown, first.value.noteOriginalMarkdown);
+});
+test("v3 cutover isolates old journal and preserves independent rich Notes conflicts", async () => {
+  const { store: S } = repository();
+  await S.init();
+  await S.put("meetings", { id: "m", title: "Local", note: "Old" });
+  await S.cutoverV3();
+  const before = await S.pendingV3();
+  assert.ok(before.some((op) => op.kind === "meetings"));
+  assert.equal((await S.bundle(before, "v3")).format, "changes-v3");
+  const original = (await S.snapshot()).meetings.find((m) => m.id === "m");
+  await S.merge([{ app: "zMinutes", format: "changes-v3", ops: [{
+    id: "remote-v3", kind: "meetings", entityId: "m", parents: [],
+    value: M.publicValue("meetings", { ...original, title: "Remote" }),
+  }] }], "v3");
+  const conflicts = M.reduce((await S.all("journal")).filter((op) => op.protocol === "v3")).conflicts;
+  assert.equal(conflicts.length, 1);
+  assert.equal((await S.snapshot()).meetings.find((m) => m.id === "m").title, "Local");
+  await assert.rejects(() => S.merge([{ app: "zMinutes", format: "changes-v2", ops: [] }], "v3"));
+});
+test("inline Notes photo keeps stable photo ID through backup and restore", async () => {
+  const { store: S } = repository();
+  await S.init();
+  const mediaId = await S.addMedia(new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" }), "test.png");
+  const doc = { type: "doc", content: [{ type: "paragraph", content: [
+    { type: "text", text: "Site photo " }, { type: "meetingImage", attrs: { photoId: "photo-1" } },
+  ] }] };
+  await S.put("meetings", { id: "with-photo", title: "Site", noteDoc: doc,
+    photos: [{ id: "photo-1", mediaId, note: "Entrance" }] });
+  const backup = await S.portable();
+  assert.equal(backup.meetings[0].photos[0].id, "photo-1");
+  assert.equal(backup.meetings[0].noteDoc.content[0].content[1].attrs.photoId, "photo-1");
+  const { store: T } = repository();
+  await T.init();
+  await T.restore(backup);
+  const meeting = (await T.snapshot()).meetings.find((m) => m.id === "with-photo");
+  assert.ok(meeting.photos[0].mediaId);
+  assert.equal(meeting.noteDoc.content[0].content[1].attrs.photoId, meeting.photos[0].id);
+  assert.ok(await T.get("media", meeting.photos[0].mediaId));
+});

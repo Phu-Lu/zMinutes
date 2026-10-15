@@ -75,53 +75,56 @@ const server = http.createServer((req, res) => {
       () => ZM.meetingId && !document.getElementById("newMeetingDialog").open,
     );
     const id = await page.evaluate(() => ZM.meetingId);
-    await page
-      .locator("#noteInput")
-      .fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
+    const note = page.locator("#noteEditor .ProseMirror");
+    await note.waitFor();
+    await page.waitForFunction(() => document.querySelector("#noteEditor .ProseMirror")?.getAttribute("contenteditable") === "true");
+    await note.fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
     await page.evaluate(() => {
-      const note = document.getElementById("noteInput");
-      note.focus();
-      note.setSelectionRange(9, 9);
-      document.dispatchEvent(new Event("selectionchange"));
+      const text = document.querySelector("#noteEditor .ProseMirror p").firstChild;
+      const range = document.createRange();
+      range.setStart(text, 9); range.collapse(true);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
     });
     await page.locator('[data-insert="decision"]').click();
     assert.equal(await page.evaluate(() => ZM.tab), "note");
-    assert.match(await page.locator("#noteInput").inputValue(), /^Nội dung \n◇ DECISION: tiếng/);
+    assert.match(await note.innerHTML(), /data-note-kind="decision"/);
     await page.locator('[data-insert="task"]').click();
     assert.equal(await page.evaluate(() => ZM.tab), "note");
-    assert.match(await page.locator("#noteInput").inputValue(), /✓ ACTION ITEM: /);
+    assert.match(await page.evaluate(() => ZM.richNotes && document.querySelector('#noteEditor').innerHTML), /data-note-kind="task"/);
     await page.locator('[data-insert="important"]').click();
     assert.equal(await page.evaluate(() => ZM.tab), "note");
-    assert.match(await page.locator("#noteInput").inputValue(), /! IMPORTANT: /);
-    await page.locator("#noteInput").fill("Before text after");
+    assert.match(await page.evaluate(() => document.querySelector('#noteEditor').innerHTML), /data-note-kind="important"/);
+    await note.fill("Before text after");
     await page.evaluate(() => {
-      const note = document.getElementById("noteInput");
-      note.focus();
-      note.setSelectionRange(7, 11);
-      document.dispatchEvent(new Event("selectionchange"));
+      const text = document.querySelector("#noteEditor .ProseMirror p").firstChild;
+      const range = document.createRange(); range.setStart(text, 7); range.setEnd(text, 11);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
     });
+    await page.locator("#noteStyleBtn").click();
     await page.locator('[data-format="bold"]').click();
-    assert.equal(await page.locator("#noteInput").inputValue(), "Before **text** after");
-    await page.locator(".notes-preview summary").click();
-    await page.waitForFunction(() => document.getElementById("notePreview").innerHTML.includes("<strong>text</strong>"));
-    assert.match(await page.locator("#notePreview").innerHTML(), /<strong>text<\/strong>/);
-    await page.locator("#noteInput").fill("One\nTwo");
+    assert.match(await note.innerHTML(), /<strong>text<\/strong>/);
+    await page.locator('[data-format="underline"]').click();
+    assert.match(await note.innerHTML(), /<u>/);
+    await page.locator('[data-format="strike"]').click();
+    assert.match(await note.innerHTML(), /<s>/);
+    await page.locator('[data-format="italic"]').click();
+    assert.match(await note.innerHTML(), /<em>/);
+    await note.fill("One\nTwo");
     await page.evaluate(() => {
-      const note = document.getElementById("noteInput");
-      note.focus();
-      note.setSelectionRange(0, note.value.length);
-      document.dispatchEvent(new Event("selectionchange"));
+      const content = document.querySelector("#noteEditor .ProseMirror");
+      const range = document.createRange(); range.selectNodeContents(content);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
     });
     await page.locator('[data-format="numbered"]').click();
-    assert.equal(await page.locator("#noteInput").inputValue(), "1. One\n2. Two");
-    await page.locator("#noteInput").fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
+    assert.equal(await note.locator("ol li").count(), 2);
+    await note.fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
     await page.locator("#transcriptInput").fill("Supplier said delivery is Friday.");
     await context.grantPermissions(["microphone", "clipboard-read", "clipboard-write"]);
     await page.locator("#copyTranscriptBtn").click();
     assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "Supplier said delivery is Friday.");
     await page.locator("#addTranscriptToNotesBtn").click();
-    assert.match(await page.locator("#noteInput").inputValue(), /TRANSCRIPT:\nSupplier said delivery is Friday\./);
-    await page.locator("#noteInput").fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
+    assert.match(await note.innerText(), /TRANSCRIPT:[\s\S]*Supplier said delivery is Friday\./);
+    await note.fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
     await page.locator("#transcriptInput").fill("");
     await page.locator('.tabs [data-tab="agenda"]').click();
     await page.locator("#agendaInput").fill("Question one");
@@ -167,9 +170,9 @@ const server = http.createServer((req, res) => {
       "Observation",
     );
     await page.evaluate((id) => ZM.open(id), id);
-    assert.equal(
-      await page.locator("#noteInput").inputValue(),
-      "Nội dung tiếng Việt\nQuyết định cần lưu.",
+    assert.match(
+      await page.locator("#noteEditor .ProseMirror").innerText(),
+      /Nội dung tiếng Việt[\s\S]*Quyết định cần lưu\./,
     );
     assert.equal(
       await page.evaluate(() => ZM.current().agenda[0].note),
@@ -714,7 +717,7 @@ const server = http.createServer((req, res) => {
     assert.match(translationPrompt, /First clip transcript[\s\S]*Transcript for original meeting/);
     assert.equal(await page.locator("#translationPanel").isVisible(), true);
     await page.locator("#addTranslationToNotesBtn").click();
-    await page.waitForFunction(() => document.getElementById("noteInput").value.includes("Bản dịch cuộc họp."));
+    await page.waitForFunction(() => document.getElementById("noteEditor").textContent.includes("Bản dịch cuộc họp."));
     await page.unroute("https://generativelanguage.googleapis.com/**");
     await page.evaluate(() => {
       document.getElementById("translationLanguage").value = "English";
@@ -737,7 +740,7 @@ const server = http.createServer((req, res) => {
     await page.reload();
     await page.waitForFunction(() => ZM?.ready);
     await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
-    assert.match(await page.locator("#noteInput").inputValue(), /TRANSLATION \(Vietnamese\):\nBản dịch cuộc họp\./);
+    assert.match(await page.locator("#noteEditor .ProseMirror").innerText(), /TRANSLATION \(Vietnamese\):[\s\S]*Bản dịch cuộc họp\./);
     console.log("PASS: transcript translation and insert into persisted Notes");
     await page.evaluate(() => ZM.navigate("overview"));
     assert.deepEqual(
@@ -858,7 +861,7 @@ const server = http.createServer((req, res) => {
           files: q.includes("appProperties")
             ? (hideDrive
                 ? []
-                : drive.filter((f) => !withheldUploadIds.has(f.id))
+                : drive.filter((f) => !withheldUploadIds.has(f.id) && (!q.includes("value='changes-") || q.includes("value='" + f.appProperties?.zminutes + "'")))
               ).map(({ payload, ...f }) => f)
             : q.includes("name='zminutes-sync.json'")
               ? legacyFiles.map(({ payload, ...f }) => f)
@@ -918,6 +921,7 @@ const server = http.createServer((req, res) => {
     );
     await phone.evaluate(() => ZM.sync.sync());
     assert.equal(await phone.evaluate(() => ZM.data.meetings.length), 2);
+    await page.screenshot({ path: path.join(root, "test-results", "notes-v14-sync-v3.png") });
     assert.equal(
       await phone.evaluate(
         () =>
@@ -925,14 +929,12 @@ const server = http.createServer((req, res) => {
       ),
       "",
     );
-    await page.evaluate(
-      (id) => ZM.updateMeeting(id, { note: "Edited on PC" }),
-      id,
-    );
-    await phone.evaluate(
-      (id) => ZM.updateMeeting(id, { note: "Edited on phone" }),
-      id,
-    );
+    await page.evaluate((id) => ZM.open(id), id);
+    await page.locator("#noteEditor .ProseMirror").fill("Edited on PC");
+    await page.evaluate(() => ZM.flush());
+    await phone.evaluate((id) => ZM.open(id), id);
+    await phone.locator("#noteEditor .ProseMirror").fill("Edited on phone");
+    await phone.evaluate(() => ZM.flush());
     await phone.evaluate(() => ZM.sync.sync());
     await page.evaluate(() => ZM.sync.sync());
     assert.ok((await page.evaluate(() => ZM.conflicts.length)) > 0);
@@ -944,7 +946,7 @@ const server = http.createServer((req, res) => {
     );
     await page.evaluate(async () => {
       const c = ZM.conflicts.find((c) => c.kind === "meetings"),
-        v = c.versions.find((v) => v.value.note === "Edited on PC").value,
+        v = c.versions.find((v) => v.value?.note?.includes("Edited on PC")).value,
         old = ZM.data.meetings.find((m) => m.id === c.id);
       await ZMinutesStore.put(
         c.kind,
@@ -955,12 +957,12 @@ const server = http.createServer((req, res) => {
     });
     await page.evaluate(() => ZM.sync.sync());
     await phone.evaluate(() => ZM.sync.sync());
-    assert.equal(
+    assert.match(
       await phone.evaluate(
         (id) => ZM.data.meetings.find((m) => m.id === id).note,
         id,
       ),
-      "Edited on PC",
+      /Edited on PC/,
     );
     assert.equal(await phone.evaluate(() => ZM.conflicts.length), 0);
     assert.ok(
@@ -1171,6 +1173,92 @@ const server = http.createServer((req, res) => {
         .textContent.includes("Phone-created meeting"),
     );
     console.log("PASS: recovery preview identifies missing meeting by title");
+    drive.push({ id: "late-old-client", modifiedTime: "2026-10-25T10:00:00Z",
+      appProperties: { zminutes: "changes-v2" }, payload: { app: "zMinutes", format: "changes-v2",
+        ops: [{ id: "old-client-edit", kind: "meetings", entityId: id, parents: [],
+          value: { id, projectId: "inbox", title: "Old client late edit", note: "Late v2 Notes", updated: Date.now() } }], media: {} } });
+    const beforeLateSync = await page.evaluate((meetingId) => ZM.data.meetings.find((m) => m.id === meetingId).noteDoc, id);
+    await page.evaluate(() => ZM.sync.sync());
+    assert.equal(JSON.stringify(await page.evaluate((meetingId) => ZM.data.meetings.find((m) => m.id === meetingId).noteDoc, id)), JSON.stringify(beforeLateSync));
+    await page.evaluate(() => ZM.navigate("settings"));
+    await page.locator("#scanLegacyChangesBtn").click();
+    await page.waitForFunction(() => document.getElementById("dataRecoveryList").textContent.includes("Old client late edit"));
+    await page.locator("[data-import-legacy]").first().click();
+    assert.ok(await page.evaluate(() => ZM.data.meetings.some((m) => m.title === "Old client late edit (Recovered copy)")));
+    console.log("PASS: late v2 client cannot overwrite v3 Notes; explicit recovery imports a copy");
+    await page.evaluate(async () => {
+      await ZM.save("meetings", { id: "legacy-rich-note", projectId: "inbox", title: "Legacy Markdown", note: "**Original**\n- First item\n✓ ACTION ITEM: Follow up" });
+      await ZM.open("legacy-rich-note");
+    });
+    await page.waitForFunction(() => ZM.current()?.noteDoc && document.querySelector("#noteEditor .ProseMirror")?.getAttribute("contenteditable") === "true");
+    await page.screenshot({ path: path.join(root, "test-results", "notes-v14-migration.png") });
+    assert.equal(await page.evaluate(() => ZM.current().noteOriginalMarkdown), "**Original**\n- First item\n✓ ACTION ITEM: Follow up");
+    assert.ok((await page.evaluate(() => ZMinutesStore.noteMigrationBackups())).some((b) => b.meetingId === "legacy-rich-note"));
+    const imageBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lXcAAAAASUVORK5CYII=", "base64");
+    await page.locator("#noteImageInput").setInputFiles({ name: "inline.png", mimeType: "image/png", buffer: imageBytes });
+    await page.waitForFunction(() => ZM.current()?.noteDoc?.content?.some((block) => JSON.stringify(block).includes("meetingImage")));
+    const inlinePhotoId = await page.evaluate(() => ZM.current().photos.at(-1).id);
+    assert.ok(await page.evaluate((photoId) => ZM.current().photos.some((p) => p.id === photoId && p.mediaId), inlinePhotoId));
+    await page.evaluate(() => ZM.flush());
+    await page.reload();
+    await page.waitForFunction(() => ZM?.ready);
+    await page.evaluate(() => ZM.open("legacy-rich-note", "field"));
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator(`[data-remove-photo="${inlinePhotoId}"]`).click();
+    await page.waitForFunction(() => ZM.tab === "note");
+    assert.ok(await page.evaluate((photoId) => ZM.current().photos.some((p) => p.id === photoId), inlinePhotoId));
+    await page.locator("#noteEditor img[data-photo-id]").waitFor();
+    console.log("PASS: legacy Notes recovery, inline shared image, reload and deletion guard");
+    for (const [name, width, height] of [["desktop", 1366, 900], ["pixel6", 412, 915], ["et40", 800, 1280]]) {
+      await page.setViewportSize({ width, height });
+      await page.evaluate(() => ZM.nav(false));
+      await page.waitForTimeout(450);
+      const layout = await page.evaluate(() => {
+        const writer = document.querySelector(".notes-writing").getBoundingClientRect();
+        const context = document.querySelector(".notes-context").getBoundingClientRect();
+        const toolbar = document.querySelector(".note-toolbar").getBoundingClientRect();
+        return { writer: { right: writer.right, bottom: writer.bottom }, context: { left: context.left, top: context.top }, toolbar: { width: toolbar.width, right: toolbar.right }, scrollWidth: document.documentElement.scrollWidth, viewport: innerWidth };
+      });
+      assert.ok(layout.scrollWidth <= layout.viewport + 1, `${name}: horizontal overflow`);
+      assert.ok(layout.toolbar.width > 0 && layout.toolbar.right <= layout.viewport + 1, `${name}: toolbar clipped`);
+      if (name === "desktop") assert.ok(layout.context.left >= layout.writer.right, "desktop: audio must sit beside notes");
+      else assert.ok(layout.context.top >= layout.writer.bottom, `${name}: audio must follow notes`);
+      await page.screenshot({ path: path.join(root, "test-results", `notes-redesign-${name}.png`), fullPage: true });
+      await page.screenshot({ path: path.join(root, "test-results", `notes-redesign-${name}-viewport.png`) });
+    }
+    await page.locator("#noteStyleBtn").click();
+    assert.equal(await page.locator("#noteStyleMenu").isVisible(), true);
+    await page.screenshot({ path: path.join(root, "test-results", "notes-redesign-et40-format-menu.png") });
+    for (const [name, setup] of [
+      ["recap", () => { ZM.tab = "summary"; ZM.renderEditor(false); }],
+      ["agenda", () => { ZM.tab = "agenda"; ZM.renderEditor(false); }],
+      ["people", () => { ZM.tab = "stakeholders"; ZM.renderEditor(false); }],
+      ["field", () => { ZM.tab = "field"; ZM.renderEditor(false); }],
+      ["overview", () => { ZM.meetingId = null; ZM.section = "overview"; ZM.render(); }],
+      ["meetings", () => { ZM.section = "meetings"; ZM.render(); }],
+      ["tasks", () => { ZM.section = "tasks"; ZM.render(); }],
+      ["settings", () => { ZM.section = "settings"; ZM.render(); }],
+    ]) {
+      await page.evaluate(setup);
+      for (const [device, width, height] of [["desktop", 1366, 900], ["pixel6", 412, 915], ["et40", 800, 1280]]) {
+        await page.setViewportSize({ width, height });
+        await page.evaluate(() => ZM.nav(false));
+        await page.waitForTimeout(350);
+        const metrics = await page.evaluate(() => {
+          const top = document.querySelector(".topbar").getBoundingClientRect();
+          return { page: document.documentElement.scrollWidth, viewport: innerWidth, topRight: top.right };
+        });
+        assert.ok(metrics.page <= metrics.viewport + 1, `${name} ${device}: page overflows horizontally`);
+        assert.ok(metrics.topRight <= metrics.viewport + 1, `${name} ${device}: app bar clipped`);
+        await page.screenshot({ path: path.join(root, "test-results", `ui-${name}-${device}.png`), fullPage: true });
+      }
+    }
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.evaluate(() => { ZM.section = "meetings"; ZM.render(); ZM.nav(false); });
+    await page.locator(".meeting-menu summary").first().click();
+    assert.equal(await page.locator(".meeting-menu .delete-btn").first().isVisible(), true);
+    await page.locator(".top-more summary").click();
+    assert.equal(await page.locator("#backupBtn").isVisible(), true);
     await contextB.close();
     await context.close();
   } finally {

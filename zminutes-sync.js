@@ -158,7 +158,7 @@
         name: "zminutes-changes-" + batch + ".json",
         mimeType: "application/json",
         parents: [await getFolder()],
-        appProperties: { zminutes: "changes-v2" },
+        appProperties: { zminutes: "changes-v3" },
       },
       body = new Blob([
         "--" + boundary + "\r\nContent-Type: application/json\r\n\r\n",
@@ -182,7 +182,7 @@
       );
     for (let attempt = 0; attempt < 3; attempt++) {
       const visible = await list(
-        "trashed=false and appProperties has { key='zminutes' and value='changes-v2' }",
+        "trashed=false and appProperties has { key='zminutes' and value='changes-v3' }",
       );
       if (visible.some((item) => item.id === file.id)) return;
       if (attempt < 2)
@@ -209,13 +209,12 @@
     try {
       await A.flush();
       status("Connecting to Drive…");
-      await S.republishLegacy();
       await ensureAuthorized();
-      const seen = new Set((await S.get("meta", "drive-seen-v2")) || []),
+      const seen = new Set((await S.get("meta", "drive-seen-v3")) || []),
         bundles = [],
         received = [];
       const files = await list(
-        "trashed=false and appProperties has { key='zminutes' and value='changes-v2' }",
+        "trashed=false and appProperties has { key='zminutes' and value='changes-v3' }",
       );
       $("newDriveHistory").hidden = true;
       for (const f of files)
@@ -226,6 +225,18 @@
       // A v1 snapshot is only inspected through Recovery. Importing it as if it
       // were an already-uploaded v2 change makes other devices miss its data.
       if (!files.length) {
+        const legacyChanges = await list(
+          "trashed=false and appProperties has { key='zminutes' and value='changes-v2' }",
+        );
+        if (legacyChanges.length && !(await S.get("meta", "drive-v3-cutover"))) {
+          status("Upgrading Drive history to Notes v3…");
+          const oldBundles = [];
+          for (const item of legacyChanges)
+            oldBundles.push(await api("drive/v3/files/" + item.id + "?alt=media"));
+          await S.merge(oldBundles, "v2");
+          await S.meta("drive-v2-cutover-files", legacyChanges.map((item) => item.id));
+          await A.reload();
+        }
         const local = await S.snapshot();
         const hasLocalWork =
           ["meetings", "tasks", "fieldNotes"].some(
@@ -234,20 +245,25 @@
         const legacy = await list(
           "trashed=false and name='zminutes-sync.json'",
         );
-        if (legacy.length && !initialize) {
+        if (!legacyChanges.length && legacy.length && !initialize) {
           $("newDriveHistory").hidden = !hasLocalWork;
           status(
             "Sync paused · old Drive snapshot found. Inspect it in Recovery before starting a new history.",
           );
           return;
         }
-        if (hasLocalWork && !initialize) {
+        if (!legacyChanges.length && hasLocalWork && !initialize) {
           $("newDriveHistory").hidden = false;
           status(
             "Sync paused · no Drive history visible. Check account and Client ID, or start a new history in Settings.",
           );
           return;
         }
+      }
+      if (!(await S.get("meta", "drive-v3-cutover"))) {
+        await A.flush();
+        await S.cutoverV3();
+        await A.reload();
       }
       if (A.recording || A.aiBusy) {
         status("Sync paused until recording / AI finishes");
@@ -257,18 +273,18 @@
         await A.flush();
         document.querySelector(".app").inert = true;
         try {
-          await S.merge(bundles);
+          await S.merge(bundles, "v3");
           await S.acknowledge(
             bundles.flatMap((bundle) => bundle.ops.map((op) => op.id)),
           );
           await A.reload();
           received.forEach((id) => seen.add(id));
-          await S.meta("drive-seen-v2", [...seen]);
+          await S.meta("drive-seen-v3", [...seen]);
         } finally {
           document.querySelector(".app").inert = false;
         }
       }
-      const pending = await S.pending();
+      const pending = await S.pendingV3();
       if (
         !files.length &&
         !bundles.length &&
@@ -281,7 +297,7 @@
       }
       for (let i = 0; i < pending.length; i += 30) {
         const batch = pending.slice(i, i + 30),
-          payload = await S.bundle(batch);
+          payload = await S.bundle(batch, "v3");
         if (payload.ops.length) {
           const uploaded = await upload(payload);
           status("Verifying Drive upload…");
@@ -289,13 +305,13 @@
           seen.add(uploaded.id);
         }
         await S.acknowledge(batch.map((o) => o.id));
-        await S.meta("drive-seen-v2", [...seen]);
+        await S.meta("drive-seen-v3", [...seen]);
       }
       await A.renderConflicts();
       status(
         A.conflicts.length
           ? `${A.conflicts.length} sync conflict(s) · review Settings before editing those items`
-          : (await S.pending()).length
+          : (await S.pendingV3()).length
             ? "New changes are waiting for sync"
             : "Synced · " + new Date().toLocaleTimeString(),
       );
@@ -329,7 +345,7 @@
   window.addEventListener("zminutes:ready", () => {
     A.run(async () =>
       status(
-        (await S.pending()).length
+        ((await S.get("meta", "drive-v3-cutover")) ? (await S.pendingV3()).length : (await S.pending()).length)
           ? "Local changes · tap Sync now"
           : "Saved on this device",
       ),

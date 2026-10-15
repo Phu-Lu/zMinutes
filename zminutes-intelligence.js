@@ -524,9 +524,12 @@
     }
     transcriptAction("Copied to clipboard.");
   }
-  function addToNotes(value, label) {
+  async function addToNotes(value, label) {
     if (!value) throw new Error("No transcript text to add yet.");
-    A.insertNoteText(label + "\n" + value + "\n", true);
+    const translation = label.startsWith("TRANSLATION");
+    if (!A.richNotes?.insertSource(value, label, translation ? "translation" : "transcript", translation ? $("translationLanguage").value : ""))
+      throw new Error("Open Notes and wait for its editor to become ready.");
+    await A.flush();
     transcriptAction("Added to Notes and saved locally.");
   }
   function currentTranslation() {

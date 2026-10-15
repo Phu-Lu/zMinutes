@@ -171,7 +171,7 @@
         )
         .sort((a, b) => b.updated - a.updated);
     $("meetingsHead").innerHTML = head(
-      "Meetings",
+      "My meetings",
       "All meetings in this project.",
     );
     $("meetingCount").textContent = ms.length + " meetings";
@@ -179,7 +179,7 @@
       ms
         .map(
           (m) =>
-            `<article class="meeting-card"><button class="card-main" data-open="${e(m.id)}"><span class="meeting-date">${e(date(m.date))}</span><span class="meeting-info"><strong>${e(m.title || "Untitled meeting")}</strong><small>${e(m.location)}</small></span></button><button class="delete-btn" data-delete-meeting="${e(m.id)}" aria-label="Delete meeting">×</button></article>`,
+            `<article class="meeting-card"><button class="card-main" data-open="${e(m.id)}"><span class="meeting-date" aria-hidden="true">${e(m.date && !isNaN(new Date(m.date)) ? new Date(m.date).getDate() : "–")}</span><span class="meeting-info"><strong>${e(m.title || "Untitled meeting")}</strong><small>${e(date(m.date))}${m.location ? " · " + e(m.location) : ""}</small></span><span class="meeting-open" aria-hidden="true">›</span></button><details class="meeting-menu"><summary aria-label="More actions for ${e(m.title || "Untitled meeting")}" title="More actions">•••</summary><div><button class="delete-btn" data-delete-meeting="${e(m.id)}" aria-label="Delete ${e(m.title || "Untitled meeting")}">Delete meeting</button></div></details></article>`,
         )
         .join("") || empty("No matching meetings.");
   };
@@ -210,8 +210,7 @@
       $("titleInput").value = m.title;
       $("dateInput").value = m.date;
       $("locationInput").value = m.location;
-      $("noteInput").value = m.note;
-      A.renderNotePreview();
+      A.richNotes?.mount(m);
       $("transcriptInput").value = m.transcript;
       $("summaryPromptInput").value = m.summaryPrompt;
       $("solutionPromptInput").value = m.solutionPrompt;

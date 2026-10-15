@@ -151,7 +151,7 @@
     if (!m) return;
     const name = safe(m.title) + ".meeting.json",
       blob = new Blob(
-        [JSON.stringify({ ...m, format: "meeting-note-package-v2" })],
+        [JSON.stringify({ ...m, format: "meeting-note-package-v3" })],
         { type: "application/json" },
       );
     A.download(blob, name);

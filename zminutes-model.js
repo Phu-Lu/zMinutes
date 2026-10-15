@@ -9,6 +9,54 @@
     name: "Personal Workspace",
     color: "#0078d4",
   });
+  function noteDoc(value) {
+    if (value == null) return null;
+    if (!value || value.type !== "doc" || !Array.isArray(value.content))
+      throw new Error("Invalid rich Notes document");
+    let count = 0;
+    const visit = (node, depth) => {
+      if (!node || typeof node !== "object" || Array.isArray(node) || depth > 40 || ++count > 50000 || typeof node.type !== "string")
+        throw new Error("Invalid rich Notes node");
+      if (node.type === "meetingImage" && !text(node.attrs?.photoId))
+        throw new Error("Notes image has no photo ID");
+      if (node.content !== undefined) {
+        if (!Array.isArray(node.content)) throw new Error("Invalid rich Notes content");
+        node.content.forEach((child) => visit(child, depth + 1));
+      }
+      if (node.text !== undefined && typeof node.text !== "string")
+        throw new Error("Invalid rich Notes text");
+    };
+    visit(value, 0);
+    return JSON.parse(JSON.stringify(value));
+  }
+  function noteText(doc) {
+    if (!doc) return "";
+    const lines = [];
+    const walk = (node) => {
+      if (node.type === "text") return node.text || "";
+      if (node.type === "hardBreak") return "\n";
+      if (node.type === "meetingImage") return "[Photo]";
+      const body = (node.content || []).map(walk).join(["doc", "sourceBlock", "listItem", "blockquote"].includes(node.type) ? "\n" : "");
+      if (node.type === "noteCallout") {
+        const marker = { decision: "◇ DECISION: ", task: "✓ ACTION ITEM: ", important: "! IMPORTANT: " }[node.attrs?.kind] || "";
+        return marker + body;
+      }
+      if (node.type === "bulletList" || node.type === "orderedList")
+        return (node.content || []).map((child, i) => (node.type === "bulletList" ? "- " : `${i + 1}. `) + walk(child)).join("\n");
+      if (node.type === "paragraph" || node.type === "heading" || node.type === "listItem" || node.type === "sourceBlock") return body;
+      return body;
+    };
+    return walk(doc);
+  }
+  function notePhotoIds(doc) {
+    const ids = new Set();
+    const walk = (node) => {
+      if (node?.type === "meetingImage" && node.attrs?.photoId) ids.add(node.attrs.photoId);
+      (node?.content || []).forEach(walk);
+    };
+    if (doc) walk(doc);
+    return ids;
+  }
   function normalize(kind, raw) {
     if (
       !kinds.includes(kind) ||
@@ -35,7 +83,10 @@
         externalCalendarUid: text(raw.externalCalendarUid),
         calendarSource: text(raw.calendarSource),
         location: text(raw.location),
-        note: text(raw.note),
+        noteDoc: noteDoc(raw.noteDoc),
+        noteSchemaVersion: raw.noteDoc ? 1 : 0,
+        noteOriginalMarkdown: text(raw.noteOriginalMarkdown),
+        note: raw.noteDoc ? noteText(raw.noteDoc) : text(raw.note),
         transcript: text(raw.transcript),
         transcriptSegments: list(raw.transcriptSegments).map((s, i) => ({
           id: text(s.id) || r.id + "-segment-" + i,
@@ -288,6 +339,9 @@
     reduce,
     validateBackup,
     legacyTasks,
+    noteDoc,
+    noteText,
+    notePhotoIds,
   };
   if (typeof module !== "undefined") module.exports = api;
   else root.ZMinutesModel = api;
