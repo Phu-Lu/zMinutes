@@ -108,6 +108,13 @@ button:focus-visible, a:focus-visible, summary:focus-visible, label[role="button
 #summaryPanel > details summary { min-height: 43px; display: flex; align-items: center; color: #386788; cursor: pointer; font-weight: 650; }
 #summaryPanel .summary-output { min-height: 120px; padding: 18px; box-shadow: none; }
 #summaryPanel .summary-output.empty { place-content: center start; }
+#summaryPanel .summary-output { line-height: 1.6; white-space: normal; }
+#summaryPanel .summary-output h3 { margin: 18px 0 8px; line-height: 1.3; }
+#summaryPanel .summary-output h3:first-child { margin-top: 0; }
+#summaryPanel .summary-output p { margin: 0 0 12px; }
+#summaryPanel .summary-output ul, #summaryPanel .summary-output ol { margin: 0 0 14px; padding-left: 23px; }
+#summaryPanel .summary-output li { padding-left: 2px; margin: 5px 0; }
+#summaryPanel .summary-output > :last-child { margin-bottom: 0; }
 .solution-panel { border-top: 1px solid #e1e8ef; margin-top: 23px; padding-top: 21px; }
 .export-row { border-top: 1px solid #e4ebf1; padding-top: 16px; }
 

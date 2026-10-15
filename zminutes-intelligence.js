@@ -112,6 +112,14 @@
         .split(/\n+/)
         .map((x) => x.trim())
         .filter(Boolean),
+      overview = lines.length <= 8
+        ? lines
+        : [...lines.slice(0, 3), ...lines.slice(-5)],
+      additions = (m.noteDoc?.content || [])
+        .filter((block) => block.type === "sourceBlock")
+        .map((block) => ZMinutesModel.noteText({ type: "doc", content: [block] }))
+        .flatMap((value) => value.split(/\n+/).map((line) => line.trim()))
+        .filter(Boolean),
       list = (xs) =>
         xs.length
           ? "<ul>" +
@@ -120,8 +128,8 @@
           : "<p>None captured.</p>";
     return (
       "<h3>Overview</h3><p>" +
-      A.esc(lines.slice(0, 4).join(" ") || "No notes yet.") +
-      "</p><h3>Decisions</h3>" +
+      A.esc(overview.join(" ") || "No notes yet.") +
+      "</p>" + (additions.length ? "<h3>Recent additions</h3>" + list(additions) : "") + "<h3>Decisions</h3>" +
       list(lines.filter((x) => /decision|decided|agree|approved|◇/i.test(x))) +
       "<h3>Action items</h3>" +
       list(
@@ -155,10 +163,17 @@
     }
   }
   async function text(m, c, signal, override) {
+    const recentSources = (m.noteDoc?.content || [])
+      .filter((block) => block.type === "sourceBlock")
+      .slice(-2)
+      .map((block) => ZMinutesModel.noteText({ type: "doc", content: [block] }))
+      .filter(Boolean);
     const prompt =
       override ||
       (m.summaryPrompt.trim() ||
         "Summarize this meeting accurately in its original language. Return HTML using only h3, p, ul, li, strong. Sections: Overview, Decisions, Action items, Open questions. Do not invent facts.") +
+        "\nInclude new information added to Notes since any previous recap. In particular, reflect recent transcript or translation additions where relevant.\n" +
+        (recentSources.length ? "Recent Notes additions to consider:\n" + recentSources.join("\n\n") + "\n" : "") +
         "\nMeeting data:\n" +
         JSON.stringify({
           title: m.title,
@@ -274,7 +289,7 @@
           throw new Error("Transcribe or enter meeting content first.");
         const result = await text(m, c, signal);
         if (signal.aborted) throw new DOMException("Canceled", "AbortError");
-        const summary = A.sanitize(result);
+        const summary = A.formatAiText(result);
         const visible = document.createElement("div");
         visible.innerHTML = summary;
         if (!visible.textContent.trim())
@@ -474,7 +489,7 @@
       if (!result?.trim())
         throw new Error("The provider returned no solutions.");
       await A.updateMeeting(id, {
-        solutions: A.sanitize(result),
+        solutions: A.formatAiText(result),
         solutionSources: sources,
       });
       if (A.meetingId === id) A.renderEditor(false);
@@ -530,7 +545,7 @@
     if (!A.richNotes?.insertSource(value, label, translation ? "translation" : "transcript", translation ? $("translationLanguage").value : ""))
       throw new Error("Open Notes and wait for its editor to become ready.");
     await A.flush();
-    transcriptAction("Added to Notes and saved locally.");
+    transcriptAction("Added to Notes and saved locally. Regenerate the recap to include this new content.");
   }
   function currentTranslation() {
     const translation = A.translation;

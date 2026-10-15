@@ -251,9 +251,10 @@
           .join("") || empty("No stakeholders yet.");
     }
     $("summaryOutput").innerHTML = m.summary
-      ? A.sanitize(m.summary)
+      ? A.formatAiText(m.summary)
       : "<p>No recap yet. Generate one when the meeting ends.</p>";
     $("summaryOutput").classList.toggle("empty", !m.summary);
+    $("generateSummaryBtn").textContent = m.summary ? "✦ Regenerate recap" : "✦ Generate recap";
     $("recapKind").textContent =
       m.summaryType === "quick"
         ? "Offline draft · not an AI model"
@@ -268,7 +269,7 @@
       ZMinutesModel.fullTranscript(m) || "No transcript yet.";
     A.showTranslation?.();
     $("solutionOutput").innerHTML = m.solutions
-      ? A.sanitize(m.solutions)
+      ? A.formatAiText(m.solutions)
       : "<p>No suggested solutions yet.</p>";
     $("solutionOutput").classList.toggle("empty", !m.solutions);
     $("solutionSources").innerHTML = m.solutionSources

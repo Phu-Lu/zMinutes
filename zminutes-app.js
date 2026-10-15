@@ -252,6 +252,46 @@
     walk(t.content);
     return t.innerHTML;
   };
+  A.formatAiText = (raw) => {
+    const value = String(raw || "")
+      .trim()
+      .replace(/^```(?:html|markdown|md)?\s*\r?\n?/i, "")
+      .replace(/\r?\n?```\s*$/, "")
+      .trim();
+    if (!value) return "";
+    if (/<\/?[a-z][^>]*>/i.test(value)) {
+      const normalized = value
+        .replace(/<(\/?)h[1-6](?=[\s>])/gi, "<$1h3")
+        .replace(/<(\/?)div(?=[\s>])/gi, "<$1p")
+        .replace(/<(\/?)section(?=[\s>])/gi, "<$1p");
+      return A.sanitize(normalized);
+    }
+    const inline = (line) => A.esc(line.trim()).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    const html = [];
+    let list = "";
+    const closeList = () => {
+      if (list) html.push(`</${list}>`);
+      list = "";
+    };
+    for (const line of value.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) { closeList(); continue; }
+      const heading = trimmed.match(/^#{1,6}\s+(.+)$/);
+      if (heading) { closeList(); html.push(`<h3>${inline(heading[1])}</h3>`); continue; }
+      const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
+      const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
+      if (bullet || numbered) {
+        const kind = bullet ? "ul" : "ol";
+        if (list !== kind) { closeList(); html.push(`<${kind}>`); list = kind; }
+        html.push(`<li>${inline((bullet || numbered)[1])}</li>`);
+        continue;
+      }
+      closeList();
+      html.push(`<p>${inline(trimmed)}</p>`);
+    }
+    closeList();
+    return A.sanitize(html.join(""));
+  };
   A.renderConflicts = async () => {
     const conflicts = ZMinutesModel.reduce(await S.all("journal")).conflicts;
     A.conflicts = conflicts;

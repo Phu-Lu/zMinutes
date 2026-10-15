@@ -742,6 +742,61 @@ const server = http.createServer((req, res) => {
     await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
     assert.match(await page.locator("#noteEditor .ProseMirror").innerText(), /TRANSLATION \(Vietnamese\):[\s\S]*Bản dịch cuộc họp\./);
     console.log("PASS: transcript translation and insert into persisted Notes");
+    await page.locator("#noteEditor .ProseMirror").fill("Older point one\nOlder point two\nOlder point three\nOlder point four\nOlder point five");
+    await page.locator("#transcriptInput").fill("A newly discussed warehouse issue.");
+    await page.evaluate(async () => {
+      await ZM.flush();
+      await ZM.updateMeeting(ZM.meetingId, { summary: "<p>Previous recap.</p>", summaryType: "existing" });
+      document.getElementById("aiProvider").value = "gemini";
+      document.getElementById("aiModel").value = "gemini-3.5-flash";
+      document.getElementById("aiApiKey").value = "test-only";
+      document.getElementById("translationLanguage").value = "Vietnamese";
+      document.getElementById("translationLanguage").dispatchEvent(new Event("change"));
+    });
+    await page.route("https://generativelanguage.googleapis.com/**", (route) =>
+      route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "NEW TRANSLATED WAREHOUSE FINDING" }] } }] } }),
+    );
+    await page.locator("#translateTranscriptBtn").click();
+    await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("NEW TRANSLATED"));
+    await page.locator("#addTranslationToNotesBtn").click();
+    await page.evaluate(() => ZM.flush());
+    assert.match(await page.evaluate(() => ZM.current().note), /NEW TRANSLATED WAREHOUSE FINDING/);
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    await page.evaluate(() => { document.getElementById("aiProvider").value = "quick"; ZM.tab = "summary"; ZM.renderEditor(false); });
+    await page.locator("#generateSummaryBtn").click();
+    await page.waitForFunction(() => ZM.current().summaryType === "quick");
+    await page.waitForFunction(() => document.getElementById("summaryOutput").textContent.includes("NEW TRANSLATED WAREHOUSE FINDING"));
+    assert.match(await page.locator("#summaryOutput").textContent(), /NEW TRANSLATED WAREHOUSE FINDING/);
+    let refreshedPrompt;
+    await page.evaluate(() => {
+      document.getElementById("aiProvider").value = "gemini";
+      document.getElementById("aiModel").value = "gemini-3.5-flash";
+      document.getElementById("aiApiKey").value = "test-only";
+    });
+    await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
+      refreshedPrompt = route.request().postDataJSON().contents[0].parts[0].text;
+      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "### Overview\nNew warehouse finding included.\n\n### Action items\n- Confirm warehouse capacity\n- Send revised plan" }] } }] } });
+    });
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.locator("#generateSummaryBtn").click();
+    await page.waitForFunction(() => ZM.current().summaryType === "ai");
+    assert.match(refreshedPrompt, /NEW TRANSLATED WAREHOUSE FINDING/);
+    assert.equal(await page.locator("#summaryOutput h3").count(), 2);
+    assert.equal(await page.locator("#summaryOutput li").count(), 2);
+    const phoneRecap = await page.locator("#summaryOutput").evaluate((node) => ({
+      right: node.getBoundingClientRect().right,
+      viewport: innerWidth,
+      paragraphMargin: parseFloat(getComputedStyle(node.querySelector("p")).marginBottom),
+    }));
+    assert.ok(phoneRecap.right <= phoneRecap.viewport + 1 && phoneRecap.paragraphMargin >= 8);
+    await page.screenshot({ path: path.join(root, "test-results", "recap-translation-pixel6.png"), fullPage: true });
+    assert.match(await page.evaluate(() => ZM.formatAiText("### Older recap\n- First point\n- Second point")), /<h3>Older recap<\/h3><ul><li>First point<\/li><li>Second point<\/li><\/ul>/);
+    await page.reload();
+    await page.waitForFunction(() => ZM?.ready);
+    await page.evaluate((meetingId) => ZM.open(meetingId, "summary"), id);
+    assert.equal(await page.locator("#summaryOutput li").count(), 2);
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    console.log("PASS: translated Notes refresh an existing recap; mobile Markdown recap remains structured");
     await page.evaluate(() => ZM.navigate("overview"));
     assert.deepEqual(
       await page.locator("#overviewView .ov-grid h2").allTextContents(),

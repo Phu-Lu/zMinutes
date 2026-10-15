@@ -17,7 +17,7 @@
   const safe = (s) => (s || "Meeting").replace(/[\\/:*?"<>|]/g, "-");
   const plain = (html) => {
     const t = document.createElement("div");
-    t.innerHTML = A.sanitize(html);
+    t.innerHTML = A.formatAiText(html);
     t.querySelectorAll("p,h3,li,br").forEach((x) => x.append("\n"));
     return t.textContent;
   };
