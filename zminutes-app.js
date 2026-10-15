@@ -259,21 +259,23 @@
       .replace(/\r?\n?```\s*$/, "")
       .trim();
     if (!value) return "";
-    const inline = (line) => A.esc(line.trim()).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    const inline = (line) => A.esc(line).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     const plain = (block) => {
       const html = [];
       let list = "";
+      const prepared = block.replace(/([^\s])\s*(?=\*\*[^*\r\n]{2,100}:\*\*)/g, "$1\n");
       const closeList = () => {
         if (list) html.push(`</${list}>`);
         list = "";
       };
-      for (const line of block.split(/\r?\n/)) {
+      for (const line of prepared.split(/\r?\n/)) {
         const trimmed = line.trim();
         if (!trimmed) { closeList(); continue; }
         const heading = trimmed.match(/^#{1,6}\s+(.+)$/) ||
-          trimmed.match(/^(Overview|Decisions|Action items|Open questions|Transcript (?:&|and) translation insights)\s*:\s*$/i);
+          trimmed.match(/^(Overview|Decisions|Action items|Open questions|Transcript (?:&|and) translation insights|Meeting details|Thông tin cuộc họp|Tóm tắt|Quyết định|Việc cần làm|Câu hỏi còn mở)\s*:\s*$/i) ||
+          trimmed.match(/^\*\*(Overview|Decisions|Action items|Open questions|Transcript (?:&|and) translation insights|Meeting details|Thông tin cuộc họp|Tóm tắt|Quyết định|Việc cần làm|Câu hỏi còn mở):?\*\*\s*$/i);
         if (heading) { closeList(); html.push(`<h3>${inline(heading[1])}</h3>`); continue; }
-        const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
+        const bullet = trimmed.match(/^[-*+•]\s+(.+)$/);
         const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
         if (bullet || numbered) {
           const kind = bullet ? "ul" : "ol";
@@ -294,12 +296,24 @@
       .replace(/<(\/?)section(?=[\s>])/gi, "<$1p");
     const template = document.createElement("template");
     template.innerHTML = normalized;
+    const formatInlineNodes = (element) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      for (const node of nodes) {
+        if (!node.textContent.includes("**")) continue;
+        const replacement = document.createElement("template");
+        replacement.innerHTML = inline(node.textContent);
+        node.replaceWith(replacement.content);
+      }
+    };
     const html = [...template.content.childNodes].map((node) => {
       if (node.nodeType === Node.TEXT_NODE) return plain(node.textContent || "");
       if (node.nodeType !== Node.ELEMENT_NODE) return "";
       if (node.tagName === "P" && node.children.length === 0 &&
-          /(?:^|\n)\s*(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)/.test(node.textContent))
+          /\*\*|(?:^|\n)\s*(?:#{1,6}\s+|[-*+•]\s+|\d+[.)]\s+)/.test(node.textContent))
         return plain(node.textContent);
+      formatInlineNodes(node);
       return node.outerHTML;
     }).join("");
     return A.sanitize(html);

@@ -181,7 +181,7 @@
       override ||
       (m.summaryPrompt.trim() ||
         "Summarize this meeting accurately in its original language. Return HTML using only h3, p, ul, li, strong. Sections: Overview, Decisions, Action items, Open questions. Do not invent facts.") +
-        "\nUse all current meeting data, not any previous recap. A transcript or translation added to Notes is substantive source material: extract its concrete facts, not just its topic.\n" +
+        "\nThis is a meeting RECAP, not a translation or transcript copy. Use all current meeting data, not any previous recap. A transcript or translation added to Notes is substantive source material: extract its concrete facts, not just its topic. For a substantial response, use distinct section headings and lists rather than one long paragraph.\n" +
         "\nMeeting data:\n" +
         JSON.stringify({
           title: m.title,
@@ -326,13 +326,33 @@
       await run(id, async (m, c, signal) => {
         if (requireTranscript && !ZMinutesModel.fullTranscript(m).trim())
           throw new Error("Transcribe or enter meeting content first.");
-        const result = await text(m, c, signal);
+        let result = await text(m, c, signal);
         if (signal.aborted) throw new DOMException("Canceled", "AbortError");
         let summary = A.formatAiText(result);
         const visible = document.createElement("div");
         visible.innerHTML = summary;
         if (!visible.textContent.trim())
           throw new Error("The provider returned an empty recap");
+        if (c.provider !== "quick" && visible.textContent.length > 350 &&
+            visible.querySelectorAll("h3").length < 2) {
+          $("aiStatus").textContent = "Reformatting unstructured recap…";
+          result = await text(m, c, signal,
+            "The previous response was an unstructured transcript or translation, not a meeting recap. " +
+            "Create a concise MEETING RECAP now. Do not reproduce or translate the transcript. " +
+            "Return HTML with separate <h3>Overview</h3>, <h3>Decisions</h3>, <h3>Action items</h3>, and <h3>Open questions</h3> sections; use <p> and <ul><li> for content. " +
+            "Extract facts from the current meeting data. Do not invent facts.\n" +
+            (m.summaryPrompt.trim() ? "User's recap preference: " + m.summaryPrompt.trim() + "\n" : "") +
+            "Meeting data:\n" + JSON.stringify({
+              title: m.title, date: m.date, note: m.note,
+              transcript: ZMinutesModel.fullTranscript(m), agenda: m.agenda,
+              people: m.stakeholders,
+              tasks: A.data.tasks.filter((task) => task.meetingId === m.id),
+            }));
+          summary = A.formatAiText(result);
+          visible.innerHTML = summary;
+          if (visible.querySelectorAll("h3").length < 2)
+            throw new Error("AI returned an unformatted transcript instead of a meeting recap. The previous recap was kept; check the custom recap prompt or try another model.");
+        }
         if (noteSources(m).length && c.provider !== "quick") {
           $("aiStatus").textContent = "Summarizing added transcript…";
           summary += await sourceDigest(m, c, signal);

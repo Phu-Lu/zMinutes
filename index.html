@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0078d4" />
   <meta name="description" content="A private, local-first meeting notebook." />
-  <link rel="manifest" href="manifest.webmanifest?v=33" />
+  <link rel="manifest" href="manifest.webmanifest?v=34" />
   <link rel="apple-touch-icon" href="zminutes-icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=33" />
-  <link rel="stylesheet" href="zminutes-v2.css?v=33" />
+  <link rel="stylesheet" href="styles.css?v=34" />
+  <link rel="stylesheet" href="zminutes-v2.css?v=34" />
   <style>
     :root { --ink:#1b1b1f; --muted:#5f636d; --paper:#f3f7fc; --card:#fff; --line:#d9e2ef; --brand:#0078d4; --lime:#d7efff; --danger:#d13438; }
     body { background:linear-gradient(130deg,#edf6ff 0,#f8fbff 42%,#f3f7fc 100%); }
@@ -31,7 +31,7 @@
     @media (max-width:380px){.primary#newMeetingBtn{width:40px;min-width:40px;justify-content:center;padding:8px}.primary#newMeetingBtn span{display:none}}
     @media (max-width:599px){.top-actions #installBtn:not(.hidden){width:44px;min-width:44px;min-height:44px;font-size:21px;padding:6px}}
   </style>
-  <link rel="stylesheet" href="zminutes-ui.css?v=33" />
+  <link rel="stylesheet" href="zminutes-ui.css?v=34" />
   <title>zMinutes</title>
 </head>
 <body>
@@ -142,26 +142,26 @@
       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button><button id="scanLegacyChangesBtn" class="secondary">Review older-app changes</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
       <section class="settings-card"><h2>Recover recordings</h2><p>Audio is checkpointed while recording. Recover saved segments after an interruption.</p><div id="recoveryList"></div></section>
       <section class="settings-card"><h2>Sync conflicts</h2><p id="conflictCount"></p><div id="conflictList"></div></section>
-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 33</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 34</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
       </div></div>
     </section>
   </main>
   </div>
   <dialog id="newMeetingDialog"><form id="newMeetingForm"><button class="dialog-close" type="button" value="cancel" aria-label="Close">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><label>Meeting template<select id="meetingTemplateSelect"><option value="">Blank meeting</option><option value="project">Project update</option><option value="site">Site inspection</option><option value="oneonone">1:1 meeting</option></select></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
-  <script src="zminutes-model.js?v=33"></script>
-  <script src="zminutes-repository.js?v=33"></script>
-  <script src="zminutes-app.js?v=33"></script>
-  <script src="zminutes-views.js?v=33"></script>
-  <script src="zminutes-editor.bundle.js?v=33"></script>
-  <script src="zminutes-rich-notes.js?v=33"></script>
-  <script src="zminutes-capture.js?v=33"></script>
-  <script src="zminutes-audio.js?v=33"></script>
-  <script src="zminutes-intelligence.js?v=33"></script>
-  <script src="zminutes-exports.js?v=33"></script>
-  <script src="zminutes-sync.js?v=33"></script>
-  <script src="zminutes-recovery.js?v=33"></script>
-  <script src="zminutes-reminders.js?v=33"></script>
-  <script src="zminutes-pwa.js?v=33"></script>
+  <script src="zminutes-model.js?v=34"></script>
+  <script src="zminutes-repository.js?v=34"></script>
+  <script src="zminutes-app.js?v=34"></script>
+  <script src="zminutes-views.js?v=34"></script>
+  <script src="zminutes-editor.bundle.js?v=34"></script>
+  <script src="zminutes-rich-notes.js?v=34"></script>
+  <script src="zminutes-capture.js?v=34"></script>
+  <script src="zminutes-audio.js?v=34"></script>
+  <script src="zminutes-intelligence.js?v=34"></script>
+  <script src="zminutes-exports.js?v=34"></script>
+  <script src="zminutes-sync.js?v=34"></script>
+  <script src="zminutes-recovery.js?v=34"></script>
+  <script src="zminutes-reminders.js?v=34"></script>
+  <script src="zminutes-pwa.js?v=34"></script>
 </body>
 </html>

@@ -831,7 +831,50 @@ const server = http.createServer((req, res) => {
     assert.match(await page.locator("#summaryOutput").textContent(), /blocked loading route/);
     assert.equal(await page.locator("#appNotice").isVisible(), false);
     await page.unroute("https://api.openai.com/v1/responses");
+    let unstructuredCalls = 0;
+    await page.route("https://api.openai.com/v1/responses", async (route) => {
+      const prompt = route.request().postDataJSON().input;
+      if (!prompt.startsWith("Summarize ONLY")) unstructuredCalls++;
+      const response = prompt.startsWith("Summarize ONLY")
+        ? "<ul><li>The receiving space is limited and needs a capacity check before the next delivery.</li><li>The blocked loading route requires an agreed revised layout with the site team.</li><li>Operations should receive the plan before the delivery date.</li></ul>"
+        : unstructuredCalls === 1
+          ? "<p>Dưới đây là bản dịch nội dung cuộc họp: **Tiêu đề:** ChipMong **Ngày:** 15/10/2026 **Bản ghi chép:** " + "Nội dung ghi âm được chép lại nguyên văn. ".repeat(12) + "</p>"
+          : "<h3>Overview</h3><p>Receiving capacity and layout need review.</p><h3>Action items</h3><ul><li>Confirm the layout with operations.</li></ul>";
+      await route.fulfill({ json: { output: [{ content: [{ text: response }] }] } });
+    });
+    await page.locator("#generateSummaryBtn").click();
+    await page.waitForFunction(() => document.getElementById("recapStatus").textContent === "Recap saved.");
+    assert.equal(unstructuredCalls, 2);
+    assert.equal(await page.locator("#summaryOutput h3").count(), 3);
+    assert.doesNotMatch(await page.locator("#summaryOutput").textContent(), /Dưới đây là bản dịch/);
+    await page.unroute("https://api.openai.com/v1/responses");
     console.log("PASS: translated Notes refresh existing Gemini/OpenAI recaps; weak digests fail safely and mobile mixed formatting stays structured");
+    const phoneMarkdownHtml = "<p>Dưới đây là phần nội dung đã được dịch hoàn chỉnh sang tiếng Việt, giữ nguyên ngữ cảnh và văn phong trao đổi trong cuộc họp: **Thông tin cuộc họp:** **Tiêu đề:** ChipMong **Ngày:** 15/10/2026 - 09:00 **Bản ghi chép (Transcript):** Bản ghi âm 1: Đây là các yêu cầu của họ. Những gì họ cần là chúng ta đưa ra một đề xuất kỹ thuật kèm theo báo giá thương mại. Kế hoạch bao gồm các công ty khác trong tập đoàn.</p>";
+    await page.evaluate(async ({ meetingId, summary }) => {
+      await ZM.updateMeeting(meetingId, { summary, summaryType: "ai" });
+    }, { meetingId: id, summary: phoneMarkdownHtml });
+    await page.reload();
+    await page.waitForFunction(() => ZM?.ready);
+    await page.evaluate((meetingId) => ZM.open(meetingId, "summary"), id);
+    await page.waitForFunction(() => document.querySelector("#summaryOutput h3")?.textContent === "Thông tin cuộc họp");
+    assert.equal(await page.locator("#summaryOutput").textContent().then((text) => text.includes("**")), false);
+    assert.equal(await page.locator("#summaryOutput h3").count(), 1);
+    assert.ok(await page.locator("#summaryOutput p").count() >= 4);
+    assert.match(await page.locator("#summaryOutput strong").allTextContents().then((texts) => texts.join(" ")), /Tiêu đề:.*Ngày:.*Bản ghi chép/);
+    assert.match(await page.evaluate(() => ZM.formatAiText("**Thông tin cuộc họp:** **Tiêu đề:** ChipMong **Ngày:** 15/10/2026")), /<h3>Thông tin cuộc họp<\/h3><p><strong>Tiêu đề:<\/strong> ChipMong<\/p><p><strong>Ngày:<\/strong> 15\/10\/2026<\/p>/);
+    assert.match(await page.evaluate(() => ZM.formatAiText('<p>**Overview:** see <a href="https://example.org/source">source</a></p>')), /<strong>Overview:<\/strong> see <a href="https:\/\/example.org\/source"/);
+    const phoneStored = await page.locator("#summaryOutput").evaluate((node) => ({
+      right: node.getBoundingClientRect().right,
+      viewport: innerWidth,
+      paragraphMargin: parseFloat(getComputedStyle(node.querySelector("p")).marginBottom),
+    }));
+    assert.ok(phoneStored.right <= phoneStored.viewport + 1 && phoneStored.paragraphMargin >= 8);
+    await page.setViewportSize({ width: 360, height: 800 });
+    assert.ok(await page.locator("#summaryOutput").evaluate((node) => node.getBoundingClientRect().right <= innerWidth + 1));
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(root, "test-results", "recap-saved-mixed-format-pixel6.png"), fullPage: true });
+    console.log("PASS: previously saved phone recap with HTML-wrapped inline Markdown renders headings and separate fields after reload");
     await page.evaluate(() => ZM.navigate("overview"));
     assert.deepEqual(
       await page.locator("#overviewView .ov-grid h2").allTextContents(),
