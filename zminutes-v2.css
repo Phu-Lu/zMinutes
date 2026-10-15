@@ -266,13 +266,36 @@ textarea {
 .note-preview p { margin: 7px 0; }
 .note-preview ul,.note-preview ol { margin: 7px 0; padding-left: 24px; }
 .transcript-actions { margin: 12px 0; }
-.transcript-actions button,.transcript-actions select { min-height: 42px; }
-.transcript-actions select {
+.transcript-actions button,.transcript-actions input { min-height: 42px; }
+.translation-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: #edf6ff;
+  color: #47627a;
+  font-size: 12px;
+}
+.translation-source strong { color: #125b91; }
+.translation-target {
+  display: grid;
+  gap: 3px;
+  min-width: 170px;
+  color: #47627a;
+  font-size: 12px;
+  font-weight: 600;
+}
+.transcript-actions .translation-target input {
+  width: 100%;
   border: 1px solid #abc8e0;
   border-radius: 9px;
-  padding: 8px;
+  padding: 8px 10px;
   background: #fff;
   color: #173a57;
+  font: inherit;
+  font-size: 13px;
 }
 .transcript-action-status { min-height: 20px; margin: 8px 0 !important; }
 .transcript-action-status.error { color: #ffd6d6; }
@@ -294,6 +317,8 @@ textarea {
 @media (max-width: 600px) {
   .note-toolbar span { flex-basis: 100%; }
   .transcript-actions button { flex: 1 1 auto; }
+  .transcript-actions .translation-source { flex: 1 1 100%; }
+  .transcript-actions .translation-target { flex: 1 1 100%; }
 }
 .recording-list .file-row {
   flex-wrap: wrap;
@@ -480,7 +505,7 @@ textarea {
 .notes-context .transcript-card .transcript-input { background: #fff; color: #183951; border-color: #d9e5f0; }
 .notes-context .transcript-card .transcript-combined { max-height: 260px; overflow: auto; }
 .notes-context .transcript-actions { gap: 6px; }
-.notes-context .transcript-actions button, .notes-context .transcript-actions select { font-size: 12px; }
+.notes-context .transcript-actions button, .notes-context .translation-target input { font-size: 12px; }
 @media (max-width: 1050px) {
   #notePanel.notes-workspace { grid-template-columns: minmax(0, 1fr); }
   .notes-context { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }

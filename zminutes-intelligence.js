@@ -568,6 +568,26 @@
     const m = A.current();
     return m ? ZMinutesModel.fullTranscript(m).trim() : "";
   }
+  const translationLanguageField = $("translationLanguage");
+  const translationLanguageKey = "zminutes-translation-target-v1";
+  try {
+    translationLanguageField.value = localStorage.getItem(translationLanguageKey) || "";
+  } catch { /* Translation still works when storage is unavailable. */ }
+  function translationLanguage() {
+    return translationLanguageField.value.trim().replace(/\s+/g, " ");
+  }
+  function requireTranslationLanguage() {
+    const language = translationLanguage();
+    if (!language) throw new Error("Enter the target language before translating.");
+    if (language.length > 60) throw new Error("Keep the target language name under 60 characters.");
+    return language;
+  }
+  function rememberTranslationLanguage() {
+    const language = translationLanguage();
+    if (!language) return;
+    try { localStorage.setItem(translationLanguageKey, language); }
+    catch { /* Device preference is optional. */ }
+  }
   function translationChunks(source, limit = 8000) {
     const chunks = [];
     for (const line of source.split("\n")) {
@@ -603,10 +623,10 @@
     }
     transcriptAction("Copied to clipboard.");
   }
-  async function addToNotes(value, label) {
+  async function addToNotes(value, label, language = "") {
     if (!value) throw new Error("No transcript text to add yet.");
     const translation = label.startsWith("TRANSLATION");
-    if (!A.richNotes?.insertSource(value, label, translation ? "translation" : "transcript", translation ? $("translationLanguage").value : ""))
+    if (!A.richNotes?.insertSource(value, label, translation ? "translation" : "transcript", language))
       throw new Error("Open Notes and wait for its editor to become ready.");
     await A.flush();
     transcriptAction("Added to Notes and saved locally. Regenerate the recap to include this new content.");
@@ -615,7 +635,7 @@
     const translation = A.translation;
     return translation?.meetingId === A.meetingId &&
       translation.source === transcriptText() &&
-      translation.language === $("translationLanguage").value ? translation.text : "";
+      translation.language.toLocaleLowerCase() === translationLanguage().toLocaleLowerCase() ? translation.text : "";
   }
   A.showTranslation = () => {
     const text = currentTranslation();
@@ -625,11 +645,20 @@
   $("copyTranscriptBtn").onclick = () => A.run(() => copyText(transcriptText()));
   $("addTranscriptToNotesBtn").onclick = () => A.run(() => addToNotes(transcriptText(), "TRANSCRIPT:"));
   $("copyTranslationBtn").onclick = () => A.run(() => copyText(currentTranslation()));
-  $("addTranslationToNotesBtn").onclick = () => A.run(() => addToNotes(currentTranslation(), "TRANSLATION (" + $("translationLanguage").value + "):"));
-  $("translationLanguage").onchange = () => A.showTranslation();
+  $("addTranslationToNotesBtn").onclick = () => A.run(() => {
+    const draft = A.translation;
+    return addToNotes(currentTranslation(), "TRANSLATION (" + draft?.language + "):", draft?.language || "");
+  });
+  translationLanguageField.oninput = () => A.showTranslation();
+  translationLanguageField.onchange = () => {
+    rememberTranslationLanguage();
+    A.showTranslation();
+  };
   $("translateTranscriptBtn").onclick = () => A.run(async () => {
-    const id = A.meetingId, source = transcriptText(), language = $("translationLanguage").value;
+    const id = A.meetingId, source = transcriptText(), language = requireTranslationLanguage();
     if (!source) throw new Error("Transcribe or enter transcript text first.");
+    A.notice("");
+    rememberTranslationLanguage();
     transcriptAction("Translating transcript…");
     $("translateTranscriptBtn").disabled = true;
     try {
@@ -640,15 +669,15 @@
         for (let i = 0; i < chunks.length; i++) {
           if (signal.aborted) throw new DOMException("Canceled", "AbortError");
           transcriptAction(`Translating part ${i + 1} of ${chunks.length}…`);
-          const prompt = `Translate the following meeting transcript into ${language}. Preserve speaker labels, order, names, numbers, and decisions. Do not summarize, add commentary, or invent details. Return only plain translated text. This is part ${i + 1} of ${chunks.length}.\n\nTranscript:\n${chunks[i]}`;
+          const prompt = `Translate the following meeting transcript into ${language}. Detect the source language automatically. Preserve speaker labels, order, names, numbers, and decisions. Do not summarize, add commentary, or invent details. Return only plain translated text. This is part ${i + 1} of ${chunks.length}.\n\nTranscript:\n${chunks[i]}`;
           const part = (await text(m, c, signal, prompt)).trim();
           if (!part) throw new Error(`The provider returned an empty translation for part ${i + 1}.`);
           translated.push(part);
         }
         const result = translated.join("\n\n");
         if (!result) throw new Error("The provider returned an empty translation.");
-        if (A.meetingId !== id || transcriptText() !== source) {
-          transcriptAction("Transcript changed during translation. Run Translate again.", true);
+        if (A.meetingId !== id || transcriptText() !== source || translationLanguage().toLocaleLowerCase() !== language.toLocaleLowerCase()) {
+          transcriptAction("Meeting, transcript, or target language changed during translation. Run Translate again.", true);
           return;
         }
         A.translation = { meetingId: id, source, language, text: result };

@@ -702,11 +702,17 @@ const server = http.createServer((req, res) => {
     console.log(
       "PASS: audio deletion persists while transcripts remain ordered",
     );
+    await page.locator("#translationLanguage").fill("");
+    await page.locator("#translateTranscriptBtn").click();
+    await page.waitForFunction(() => document.getElementById("appNotice").textContent.includes("target language"));
     await page.evaluate(() => {
       document.getElementById("aiProvider").value = "gemini";
       document.getElementById("aiModel").value = "gemini-3.5-flash";
       document.getElementById("aiApiKey").value = "test-only";
     });
+    await page.locator("#translationLanguage").fill("Vietnamese");
+    assert.equal(await page.locator("#translationLanguage").inputValue(), "Vietnamese");
+    assert.match(await page.locator(".translation-source").textContent(), /Detect language/);
     let translationPrompt;
     await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
       translationPrompt = route.request().postDataJSON().contents[0].parts[0].text;
@@ -714,6 +720,7 @@ const server = http.createServer((req, res) => {
     });
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Bản dịch cuộc họp."));
+    assert.equal(await page.locator("#appNotice").isVisible(), false);
     assert.match(translationPrompt, /First clip transcript[\s\S]*Transcript for original meeting/);
     assert.equal(await page.locator("#translationPanel").isVisible(), true);
     await page.locator("#addTranslationToNotesBtn").click();
@@ -735,12 +742,41 @@ const server = http.createServer((req, res) => {
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Meeting translated to English."));
     assert.match(openaiTranslationPrompt, /Translate the following meeting transcript into English/);
+    assert.match(openaiTranslationPrompt, /Detect the source language automatically/);
     await page.unroute("https://api.openai.com/v1/responses");
+    let flexibleTranslationPrompt;
+    await page.route("https://api.openai.com/v1/responses", async (route) => {
+      flexibleTranslationPrompt = route.request().postDataJSON().input;
+      await route.fulfill({ json: { output: [{ content: [{ text: "Translated into the requested language." }] }] } });
+    });
+    await page.locator("#translationLanguage").fill("Korean");
+    assert.equal(await page.locator("#translationPanel").isVisible(), false);
+    await page.locator("#translateTranscriptBtn").click();
+    await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Translated into the requested language."));
+    assert.match(flexibleTranslationPrompt, /into Korean\. Detect the source language automatically/);
+    await page.locator("#addTranslationToNotesBtn").click();
+    await page.waitForFunction(() => ZM.current().noteDoc?.content.some((block) => block.attrs?.language === "Korean"));
+    await page.locator("#translationLanguage").fill("Swahili");
+    await page.locator("#translateTranscriptBtn").click();
+    await page.waitForFunction(() => ZM.translation?.language === "Swahili");
+    assert.match(flexibleTranslationPrompt, /into Swahili\. Detect the source language automatically/);
+    await page.unroute("https://api.openai.com/v1/responses");
+    await page.setViewportSize({ width: 412, height: 915 });
+    const languageLayout = await page.locator(".translation-target").evaluate((node) => ({
+      right: node.getBoundingClientRect().right,
+      inputRight: node.querySelector("input").getBoundingClientRect().right,
+      viewport: innerWidth,
+    }));
+    assert.ok(languageLayout.right <= languageLayout.viewport + 1 && languageLayout.inputRight <= languageLayout.viewport + 1);
+    await page.locator(".transcript-card").screenshot({ path: path.join(root, "test-results", "translation-auto-detect-phone.png") });
+    await page.setViewportSize({ width: 1366, height: 900 });
     await page.evaluate(() => ZM.flush());
     await page.reload();
     await page.waitForFunction(() => ZM?.ready);
     await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
+    assert.equal(await page.locator("#translationLanguage").inputValue(), "Swahili");
     assert.match(await page.locator("#noteEditor .ProseMirror").innerText(), /TRANSLATION \(Vietnamese\):[\s\S]*Bản dịch cuộc họp\./);
+    assert.match(await page.locator("#noteEditor .ProseMirror").innerText(), /TRANSLATION \(Korean\):[\s\S]*Translated into the requested language\./);
     console.log("PASS: transcript translation and insert into persisted Notes");
     await page.locator("#noteEditor .ProseMirror").fill("Older point one\nOlder point two\nOlder point three\nOlder point four\nOlder point five");
     await page.locator("#transcriptInput").fill("A newly discussed warehouse issue.");

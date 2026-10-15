@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0078d4" />
   <meta name="description" content="A private, local-first meeting notebook." />
-  <link rel="manifest" href="manifest.webmanifest?v=34" />
+  <link rel="manifest" href="manifest.webmanifest?v=35" />
   <link rel="apple-touch-icon" href="zminutes-icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=34" />
-  <link rel="stylesheet" href="zminutes-v2.css?v=34" />
+  <link rel="stylesheet" href="styles.css?v=35" />
+  <link rel="stylesheet" href="zminutes-v2.css?v=35" />
   <style>
     :root { --ink:#1b1b1f; --muted:#5f636d; --paper:#f3f7fc; --card:#fff; --line:#d9e2ef; --brand:#0078d4; --lime:#d7efff; --danger:#d13438; }
     body { background:linear-gradient(130deg,#edf6ff 0,#f8fbff 42%,#f3f7fc 100%); }
@@ -31,7 +31,7 @@
     @media (max-width:380px){.primary#newMeetingBtn{width:40px;min-width:40px;justify-content:center;padding:8px}.primary#newMeetingBtn span{display:none}}
     @media (max-width:599px){.top-actions #installBtn:not(.hidden){width:44px;min-width:44px;min-height:44px;font-size:21px;padding:6px}}
   </style>
-  <link rel="stylesheet" href="zminutes-ui.css?v=34" />
+  <link rel="stylesheet" href="zminutes-ui.css?v=35" />
   <title>zMinutes</title>
 </head>
 <body>
@@ -108,7 +108,7 @@
             <div class="record-strip"><div><span id="recordDot" class="record-dot"></span><strong id="recordLabel">Not recording</strong><span id="recordTimer">00:00</span></div><button id="recordBtn" class="record-btn" aria-label="Record audio">● <span>Record</span></button></div><p id="recordStatus" class="record-status" role="status" aria-live="polite"></p><label class="audio-upload">↑ Import audio<input id="audioFileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm" hidden></label>
             <audio id="audioPlayback" controls hidden></audio><div class="settings-actions notes-audio-actions"><button id="downloadAudioBtn" class="secondary" disabled>Download audio</button><button id="transcribeAgainBtn" class="secondary" disabled>Transcribe</button><button id="cancelAiBtn" class="secondary" hidden>Cancel AI request</button></div><div id="recordingList" class="recording-list"></div>
           </section>
-          <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Meeting transcript</strong><small id="transcriptStatus">Recording is stored locally</small></div><p id="transcriptText" class="transcript-hint">Each recorded segment is added in order. Review or move text into Notes while the meeting is in progress.</p><pre id="transcriptCombined" class="transcript-combined"></pre><label>Manual transcript or corrections<textarea id="transcriptInput" class="transcript-input" placeholder="Type or paste additional transcript here…"></textarea></label><div class="transcript-actions"><button id="copyTranscriptBtn" type="button" class="secondary">Copy transcript</button><button id="addTranscriptToNotesBtn" type="button" class="secondary">Add to Notes</button><select id="translationLanguage" aria-label="Translation language"><option value="Vietnamese">Vietnamese</option><option value="English">English</option></select><button id="translateTranscriptBtn" type="button" class="secondary">Translate</button></div><p id="transcriptActionStatus" class="transcript-action-status" role="status" aria-live="polite"></p><div id="translationPanel" class="translation-panel" hidden><strong>Translation draft · review before use</strong><pre id="translationOutput"></pre><div class="transcript-actions"><button id="copyTranslationBtn" type="button" class="secondary">Copy translation</button><button id="addTranslationToNotesBtn" type="button" class="secondary">Add translation to Notes</button></div></div><button id="transcriptRecapBtn" class="secondary">Create recap from transcript</button></div>
+          <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Meeting transcript</strong><small id="transcriptStatus">Recording is stored locally</small></div><p id="transcriptText" class="transcript-hint">Each recorded segment is added in order. Review or move text into Notes while the meeting is in progress.</p><pre id="transcriptCombined" class="transcript-combined"></pre><label>Manual transcript or corrections<textarea id="transcriptInput" class="transcript-input" placeholder="Type or paste additional transcript here…"></textarea></label><div class="transcript-actions"><button id="copyTranscriptBtn" type="button" class="secondary">Copy transcript</button><button id="addTranscriptToNotesBtn" type="button" class="secondary">Add to Notes</button><span class="translation-source" aria-label="Source language detected automatically">From: <strong>Detect language</strong></span><label class="translation-target">To<input id="translationLanguage" type="text" aria-label="Translate to language" placeholder="Type any language" maxlength="60" autocomplete="off" /></label><button id="translateTranscriptBtn" type="button" class="secondary">Translate</button></div><p id="transcriptActionStatus" class="transcript-action-status" role="status" aria-live="polite"></p><div id="translationPanel" class="translation-panel" hidden><strong>Translation draft · review before use</strong><pre id="translationOutput"></pre><div class="transcript-actions"><button id="copyTranslationBtn" type="button" class="secondary">Copy translation</button><button id="addTranslationToNotesBtn" type="button" class="secondary">Add translation to Notes</button></div></div><button id="transcriptRecapBtn" class="secondary">Create recap from transcript</button></div>
         </aside>
       </div>
       <div id="agendaPanel" class="panel hidden"><div class="panel-intro"><h2>Questions & agenda</h2><p>Prepare ahead of time, or add a question while you meet.</p></div><form id="agendaForm" class="add-row"><input id="agendaInput" placeholder="Example: Can we agree on the design deadline?" autocomplete="off"/><button class="primary" type="submit">Add</button></form><div class="agenda-tools"><label class="upload-list"><input id="agendaUpload" type="file" accept=".txt,.csv,text/plain,text/csv" />↑ Import question list</label><small>One question per line. Supports .txt and .csv.</small></div><div id="agendaList" class="check-list"></div></div>
@@ -142,26 +142,26 @@
       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button><button id="scanLegacyChangesBtn" class="secondary">Review older-app changes</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
       <section class="settings-card"><h2>Recover recordings</h2><p>Audio is checkpointed while recording. Recover saved segments after an interruption.</p><div id="recoveryList"></div></section>
       <section class="settings-card"><h2>Sync conflicts</h2><p id="conflictCount"></p><div id="conflictList"></div></section>
-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 34</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 35</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
       </div></div>
     </section>
   </main>
   </div>
   <dialog id="newMeetingDialog"><form id="newMeetingForm"><button class="dialog-close" type="button" value="cancel" aria-label="Close">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><label>Meeting template<select id="meetingTemplateSelect"><option value="">Blank meeting</option><option value="project">Project update</option><option value="site">Site inspection</option><option value="oneonone">1:1 meeting</option></select></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
-  <script src="zminutes-model.js?v=34"></script>
-  <script src="zminutes-repository.js?v=34"></script>
-  <script src="zminutes-app.js?v=34"></script>
-  <script src="zminutes-views.js?v=34"></script>
-  <script src="zminutes-editor.bundle.js?v=34"></script>
-  <script src="zminutes-rich-notes.js?v=34"></script>
-  <script src="zminutes-capture.js?v=34"></script>
-  <script src="zminutes-audio.js?v=34"></script>
-  <script src="zminutes-intelligence.js?v=34"></script>
-  <script src="zminutes-exports.js?v=34"></script>
-  <script src="zminutes-sync.js?v=34"></script>
-  <script src="zminutes-recovery.js?v=34"></script>
-  <script src="zminutes-reminders.js?v=34"></script>
-  <script src="zminutes-pwa.js?v=34"></script>
+  <script src="zminutes-model.js?v=35"></script>
+  <script src="zminutes-repository.js?v=35"></script>
+  <script src="zminutes-app.js?v=35"></script>
+  <script src="zminutes-views.js?v=35"></script>
+  <script src="zminutes-editor.bundle.js?v=35"></script>
+  <script src="zminutes-rich-notes.js?v=35"></script>
+  <script src="zminutes-capture.js?v=35"></script>
+  <script src="zminutes-audio.js?v=35"></script>
+  <script src="zminutes-intelligence.js?v=35"></script>
+  <script src="zminutes-exports.js?v=35"></script>
+  <script src="zminutes-sync.js?v=35"></script>
+  <script src="zminutes-recovery.js?v=35"></script>
+  <script src="zminutes-reminders.js?v=35"></script>
+  <script src="zminutes-pwa.js?v=35"></script>
 </body>
 </html>
