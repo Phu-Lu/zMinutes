@@ -68,6 +68,9 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => window.ZM?.ready);
     await page.locator("#newMeetingBtn").click();
     await page.locator("#newTitle").fill("Cuộc họp kiểm thử");
+    const dialogFields = await page.locator("#newMeetingDialog input, #newMeetingDialog select").evaluateAll((nodes) => nodes.map((n) => n.getBoundingClientRect().height));
+    assert.ok(dialogFields.every((height) => Math.abs(height - 44) < 1), "new meeting dialog field heights match");
+    await page.locator("#newMeetingDialog").screenshot({ path: path.join(root, "test-results", "new-meeting-purple.png") });
     await page
       .getByRole("button", { name: "Create meeting", exact: true })
       .click();
@@ -118,6 +121,8 @@ const server = http.createServer((req, res) => {
     await page.locator('[data-format="numbered"]').click();
     assert.equal(await note.locator("ol li").count(), 2);
     await note.fill("Nội dung tiếng Việt\nQuyết định cần lưu.");
+    assert.equal(await page.locator("#transcriptInput").isVisible(), false);
+    await page.locator("#manualTranscriptLabel").click();
     await page.locator("#transcriptInput").fill("Supplier said delivery is Friday.");
     await context.grantPermissions(["microphone", "clipboard-read", "clipboard-write"]);
     await page.locator("#copyTranscriptBtn").click();
@@ -699,10 +704,26 @@ const server = http.createServer((req, res) => {
       await page.evaluate(() => ZMinutesModel.fullTranscript(ZM.current())),
       /First clip transcript[\s\S]*Transcript for original meeting/,
     );
+    for (const width of [360, 412, 800, 1024, 1366]) {
+      await page.setViewportSize({ width, height: 915 });
+      const row = page.locator("#recordingList .file-row").first();
+      const metrics = await row.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const buttons = [...node.querySelectorAll("button")].map((b) => b.getBoundingClientRect());
+        return { right: box.right, viewport: innerWidth, height: box.height,
+          buttons: buttons.map((b) => ({top:b.top, width:b.width, height:b.height, right:b.right})) };
+      });
+      await page.locator(".notes-audio").screenshot({ path: path.join(root, "test-results", `audio-purple-${width}.png`) });
+      assert.ok(metrics.right <= metrics.viewport + 1 && metrics.height < 90, "recording row compact at " + width + ": " + JSON.stringify(metrics));
+      assert.ok(metrics.buttons.every((b) => b.width >= 44 && b.height >= 44 && b.right <= metrics.right), "audio targets fit at " + width);
+      assert.ok(metrics.buttons.every((b) => Math.abs(b.top - metrics.buttons[0].top) < 1), "audio actions share one row");
+      await page.locator(".notes-audio").screenshot({ path: path.join(root, "test-results", `audio-purple-${width}.png`) });
+    }
+    await page.setViewportSize({ width:1366, height:900 });
     console.log(
       "PASS: audio deletion persists while transcripts remain ordered",
     );
-    await page.locator("#translationLanguage").fill("");
+    await page.locator("#translationLanguage").selectOption("");
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => document.getElementById("appNotice").textContent.includes("target language"));
     await page.evaluate(() => {
@@ -710,17 +731,19 @@ const server = http.createServer((req, res) => {
       document.getElementById("aiModel").value = "gemini-3.5-flash";
       document.getElementById("aiApiKey").value = "test-only";
     });
-    await page.locator("#translationLanguage").fill("Vietnamese");
+    await page.locator("#translationLanguage").selectOption("Vietnamese");
     assert.equal(await page.locator("#translationLanguage").inputValue(), "Vietnamese");
     assert.match(await page.locator(".translation-source").textContent(), /Detect language/);
     let translationPrompt;
     await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
       translationPrompt = route.request().postDataJSON().contents[0].parts[0].text;
-      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "Bản dịch cuộc họp." }] } }] } });
+      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "SOURCE_LANGUAGES: English\nBản dịch cuộc họp." }] } }] } });
     });
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Bản dịch cuộc họp."));
     assert.equal(await page.locator("#appNotice").isVisible(), false);
+    assert.equal(await page.locator("#detectedLanguage").textContent(), "English");
+    assert.ok(!(await page.locator("#translationOutput").textContent()).includes("SOURCE_LANGUAGES"));
     assert.match(translationPrompt, /First clip transcript[\s\S]*Transcript for original meeting/);
     assert.equal(await page.locator("#translationPanel").isVisible(), true);
     await page.locator("#addTranslationToNotesBtn").click();
@@ -737,26 +760,34 @@ const server = http.createServer((req, res) => {
     let openaiTranslationPrompt;
     await page.route("https://api.openai.com/v1/responses", async (route) => {
       openaiTranslationPrompt = route.request().postDataJSON().input;
-      await route.fulfill({ json: { output: [{ content: [{ text: "Meeting translated to English." }] }] } });
+      await route.fulfill({ json: { output: [{ content: [{ text: "SOURCE_LANGUAGES: Korean, Japanese\nMeeting translated to English." }] }] } });
     });
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Meeting translated to English."));
+    assert.equal(await page.locator("#detectedLanguage").textContent(), "Mixed: Korean, Japanese");
     assert.match(openaiTranslationPrompt, /Translate the following meeting transcript into English/);
     assert.match(openaiTranslationPrompt, /Detect the source language automatically/);
     await page.unroute("https://api.openai.com/v1/responses");
     let flexibleTranslationPrompt;
     await page.route("https://api.openai.com/v1/responses", async (route) => {
       flexibleTranslationPrompt = route.request().postDataJSON().input;
-      await route.fulfill({ json: { output: [{ content: [{ text: "Translated into the requested language." }] }] } });
+      const text = (flexibleTranslationPrompt.includes("into Korean.") ? "SOURCE_LANGUAGES:\n" : "") + "Translated into the requested language.";
+      await route.fulfill({ json: { output: [{ content: [{ text }] }] } });
     });
-    await page.locator("#translationLanguage").fill("Korean");
+    await page.locator("#translationLanguage").selectOption("Korean");
     assert.equal(await page.locator("#translationPanel").isVisible(), false);
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => document.getElementById("translationOutput").textContent.includes("Translated into the requested language."));
     assert.match(flexibleTranslationPrompt, /into Korean\. Detect the source language automatically/);
     await page.locator("#addTranslationToNotesBtn").click();
     await page.waitForFunction(() => ZM.current().noteDoc?.content.some((block) => block.attrs?.language === "Korean"));
-    await page.locator("#translationLanguage").fill("Swahili");
+    assert.equal(await page.locator("#detectedLanguage").textContent(), "Not identified");
+    await page.locator("#translationLanguage").selectOption("custom");
+    await page.locator("#customTranslationLanguage").fill("Zulu");
+    await page.locator("#translateTranscriptBtn").click();
+    await page.waitForFunction(() => ZM.translation?.language === "Zulu");
+    assert.match(flexibleTranslationPrompt, /into Zulu/);
+    await page.locator("#translationLanguage").selectOption("Swahili");
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => ZM.translation?.language === "Swahili");
     assert.match(flexibleTranslationPrompt, /into Swahili\. Detect the source language automatically/);
@@ -764,10 +795,12 @@ const server = http.createServer((req, res) => {
     await page.setViewportSize({ width: 412, height: 915 });
     const languageLayout = await page.locator(".translation-target").evaluate((node) => ({
       right: node.getBoundingClientRect().right,
-      inputRight: node.querySelector("input").getBoundingClientRect().right,
+      inputRight: node.querySelector("select").getBoundingClientRect().right,
       viewport: innerWidth,
     }));
     assert.ok(languageLayout.right <= languageLayout.viewport + 1 && languageLayout.inputRight <= languageLayout.viewport + 1);
+    await page.evaluate(() => ZM.nav(false));
+    await page.waitForTimeout(300);
     await page.locator(".transcript-card").screenshot({ path: path.join(root, "test-results", "translation-auto-detect-phone.png") });
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.evaluate(() => ZM.flush());
@@ -775,10 +808,11 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => ZM?.ready);
     await page.evaluate((meetingId) => ZM.open(meetingId, "note"), id);
     assert.equal(await page.locator("#translationLanguage").inputValue(), "Swahili");
-    assert.match(await page.locator("#noteEditor .ProseMirror").innerText(), /TRANSLATION \(Vietnamese\):[\s\S]*Bản dịch cuộc họp\./);
+    assert.match(await page.locator("#noteEditor .ProseMirror").innerText(), /TRANSLATION \(English → Vietnamese\):[\s\S]*Bản dịch cuộc họp\./);
     assert.match(await page.locator("#noteEditor .ProseMirror").innerText(), /TRANSLATION \(Korean\):[\s\S]*Translated into the requested language\./);
     console.log("PASS: transcript translation and insert into persisted Notes");
     await page.locator("#noteEditor .ProseMirror").fill("Older point one\nOlder point two\nOlder point three\nOlder point four\nOlder point five");
+    await page.locator("#manualTranscriptLabel").click();
     await page.locator("#transcriptInput").fill("A newly discussed warehouse issue.");
     await page.evaluate(async () => {
       await ZM.flush();
@@ -1407,6 +1441,9 @@ const server = http.createServer((req, res) => {
       ["meetings", () => { ZM.section = "meetings"; ZM.render(); }],
       ["tasks", () => { ZM.section = "tasks"; ZM.render(); }],
       ["settings", () => { ZM.section = "settings"; ZM.render(); }],
+      ["calendar", () => { ZM.section = "calendar"; ZM.render(); }],
+      ["files", () => { ZM.section = "files"; ZM.render(); }],
+      ["project-field", () => { ZM.section = "field"; ZM.render(); }],
     ]) {
       await page.evaluate(setup);
       for (const [device, width, height] of [["desktop", 1366, 900], ["pixel6", 412, 915], ["et40", 800, 1280]]) {
@@ -1419,6 +1456,17 @@ const server = http.createServer((req, res) => {
         });
         assert.ok(metrics.page <= metrics.viewport + 1, `${name} ${device}: page overflows horizontally`);
         assert.ok(metrics.topRight <= metrics.viewport + 1, `${name} ${device}: app bar clipped`);
+        const fields = await page.locator('input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not(.title-input), select').evaluateAll((nodes) =>
+          nodes.filter((n) => n.getBoundingClientRect().width && n.getBoundingClientRect().height).map((n) => ({
+            id: n.id, height:n.getBoundingClientRect().height, font:getComputedStyle(n).fontFamily, size:getComputedStyle(n).fontSize,
+            right:n.getBoundingClientRect().right, viewport:innerWidth
+          })));
+        for (const field of fields) {
+          assert.ok(Math.abs(field.height - 44) < 1, `${name} ${device}: ${field.id} inconsistent field height ${field.height}`);
+          assert.ok(field.font.includes("Segoe UI"), `${name}: ${field.id} inconsistent font`);
+          assert.equal(field.size, width <= 799 ? "16px" : "14px", `${name}: ${field.id} inconsistent field type size`);
+          assert.ok(field.right <= field.viewport + 1, `${name}: ${field.id} clipped`);
+        }
         await page.screenshot({ path: path.join(root, "test-results", `ui-${name}-${device}.png`), fullPage: true });
       }
     }
@@ -1428,6 +1476,27 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator(".meeting-menu .delete-btn").first().isVisible(), true);
     await page.locator(".top-more summary").click();
     assert.equal(await page.locator("#backupBtn").isVisible(), true);
+    for (const id of ["aiSettingsBtn", "installBtn", "restoreBtn", "importMeetingBtn"]) {
+      assert.equal(await page.locator(`#${id}`).isVisible(), true, `${id}: missing from mobile More menu`);
+      const box = await page.locator(`#${id}`).boundingBox();
+      assert.ok(box.height >= 44 && box.x >= 0 && box.x + box.width <= 413, `${id}: clipped or undersized`);
+    }
+    assert.equal(await page.locator(".proj-nav .nav-item .ui-icon").count(), 6);
+    await page.screenshot({ path: path.join(root, "test-results", "toolbar-more-pixel6.png") });
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator(".top-more").evaluate((el) => el.open), false);
+    assert.equal(await page.locator(".top-more summary").evaluate((el) => el === document.activeElement), true);
+    await page.locator(".top-more summary").click();
+    await page.locator("#aiSettingsBtn").click();
+    await page.waitForFunction(() => ZM.section === "settings");
+    assert.equal(await page.locator(".top-more").evaluate((el) => el.open), false);
+    await page.locator(".top-more summary").click();
+    // Tap the page margin, outside the floating menu (which overlaps the heading).
+    await page.mouse.click(5, 450);
+    assert.equal(await page.locator(".top-more").evaluate((el) => el.open), false);
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.locator(".top-more summary").click();
+    await page.screenshot({ path: path.join(root, "test-results", "toolbar-more-desktop.png") });
     await contextB.close();
     await context.close();
   } finally {

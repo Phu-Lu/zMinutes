@@ -1,0 +1,27 @@
+/* Shared visual contract. Keep component sizes and colours here. */
+:root {
+  --font-ui: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 14px;
+  --font-field: 14px;
+  --font-label: 13px;
+  --font-caption: 12px;
+  --control-height: 44px;
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --space-card: 20px;
+  --ink: #282339;
+  --muted: #6c657c;
+  --paper: #f7f6fb;
+  --card: #fff;
+  --brand: #7360f2;
+  --brand-hover: #5943cf;
+  --brand-ink: #5943c6;
+  --brand-soft: #eeeafd;
+  --surface-tint: #f2effe;
+  --surface-subtle: #faf9fd;
+  --line: #e5e1ed;
+  --field-border: #cfc8df;
+  --focus: #ac9ef9;
+  --lime: #eeeafd;
+  --danger: #b42335;
+}

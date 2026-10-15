@@ -3,13 +3,35 @@
     $ = A.$,
     e = A.esc;
   $("summaryOutput").before($("recapKind"));
+  // Shared stroke icons, independent of device fonts and available offline.
+  const icons = {
+    overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    meetings: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/>',
+    tasks: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m7 12 3 3 7-7"/>',
+    field: '<path d="M14 4h-4L8 7H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="14" r="4"/>',
+    files: '<path d="M8 3h9l4 4v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2ZM17 3v5h4M3 7v11M10 12h7M10 16h5"/>',
+    folder: '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>',
+    settings: '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--card)"/><circle cx="15" cy="17" r="3" fill="var(--card)"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    close: '<path d="m6 6 12 12M6 18 18 6"/>',
+    back: '<path d="m11 5-7 7 7 7M4 12h16"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    sync: '<path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M18 18A8 8 0 0 1 5 15"/>',
+    install: '<path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/>',
+    restore: '<path d="M3 4v5h5M4 9a8 8 0 1 1 0 6M12 8v5l3 2"/>',
+    import: '<path d="M12 16V3m-4 4 4-4 4 4M4 14v7h16v-7"/>',
+  };
+  const icon = (name) => `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${icons[name] || icons.files}</svg>`;
+  document.querySelectorAll("[data-ui-icon]").forEach((node) => { node.innerHTML = icon(node.dataset.uiIcon); });
   const sections = [
-    ["overview", "Overview", "▦"],
-    ["meetings", "Meetings", "▤"],
-    ["calendar", "Calendar", "▣"],
-    ["tasks", "Tasks", "✓"],
-    ["field", "Field notes", "▧"],
-    ["files", "Files", "▱"],
+    ["overview", "Overview"],
+    ["meetings", "Meetings"],
+    ["calendar", "Calendar"],
+    ["tasks", "Tasks"],
+    ["field", "Field notes"],
+    ["files", "Files"],
   ];
   const head = (title, desc) =>
     `<div class="sec-head"><h1>${title}</h1><p>${desc}</p></div>`;
@@ -59,7 +81,7 @@
     $("projectList").innerHTML = A.data.projects
       .map(
         (p) =>
-          `<div class="proj${p.id === A.project ? " current open" : ""}"><button class="proj-head" data-project="${e(p.id)}"><span class="proj-chip" style="--c:${e(p.color)}">${e(p.name[0])}</span><span class="proj-name">${e(p.name)}</span></button>${p.id === A.project ? '<nav class="proj-nav">' + sections.map(([id, title, icon]) => `<button class="nav-item${A.section === id ? " active" : ""}" data-go="${id}" title="${title}"><span class="ic">${icon}</span><span class="nav-label">${title}</span></button>`).join("") + "</nav>" : ""}</div>`,
+          `<div class="proj${p.id === A.project ? " current open" : ""}"><button class="proj-head" data-project="${e(p.id)}" title="${e(p.name)}" aria-label="${e(p.name)}"><span class="proj-chip">${icon("folder")}</span><span class="proj-name">${e(p.name)}</span></button>${p.id === A.project ? '<nav class="proj-nav" aria-label="Project navigation">' + sections.map(([id, title]) => `<button class="nav-item${A.section === id ? " active" : ""}" data-go="${id}" title="${title}" aria-label="${title}" ${A.section === id ? 'aria-current="page"' : ''}>${icon(id)}<span class="nav-label">${title}</span></button>`).join("") + "</nav>" : ""}</div>`,
       )
       .join("");
     $("crumbs").textContent =
@@ -267,6 +289,11 @@
     $("solutionGroundingInput").checked = m.solutionGrounding;
     $("transcriptCombined").textContent =
       ZMinutesModel.fullTranscript(m) || "No transcript yet.";
+    $("manualTranscriptLabel").textContent = m.transcript.trim() ? "Additional text · saved" : "Add text";
+    if ($("manualTranscript").dataset.meeting !== m.id) {
+      $("manualTranscript").open = false;
+      $("manualTranscript").dataset.meeting = m.id;
+    }
     A.showTranslation?.();
     $("solutionOutput").innerHTML = m.solutions
       ? A.formatAiText(m.solutions)
@@ -287,7 +314,11 @@
         const transcribed = m.transcriptSegments.some(
           (segment) => segment.recordingId === r.id,
         );
-        return `<div class="file-row ${A.selectedRecordingId === r.id ? "selected" : ""}"><span>${e(r.label || "Recording " + (i + 1))} · ${e(r.createdAt ? new Date(r.createdAt).toLocaleString() : "Saved audio")} · ${transcribed ? "Transcribed" : "Not transcribed"}</span><button class="secondary" data-select-recording="${e(r.id)}">Play</button><button class="secondary" data-transcribe-recording="${e(r.id)}">Transcribe</button><button class="secondary" data-download-recording="${e(r.id)}">Download</button><button class="mini-delete" data-delete-recording="${e(r.id)}" aria-label="Delete ${e(r.label || "recording")}">Delete</button></div>`;
+        const name = r.label || "Recording " + (i + 1);
+        const stamp = r.createdAt ? new Date(r.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Saved audio";
+        const icon = (path) => `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
+        const action = (key, label, path, cls = "") => `<button type="button" class="${cls}" data-${key}-recording="${e(r.id)}" aria-label="${label} ${e(name)}" title="${label}">${icon(path)}</button>`;
+        return `<div class="file-row ${A.selectedRecordingId === r.id ? "selected" : ""}"><div class="recording-meta" title="${e(name + ' · ' + stamp)}"><strong>${e(name)}</strong><small>${transcribed ? "Transcribed" : "Ready"} · ${e(stamp)}</small></div><div class="recording-actions">${action("select", "Play", '<path d="m9 5 11 7-11 7z"/>')}${action("transcribe", "Transcribe", '<path d="M4 6h16M4 12h16M4 18h10"/>')}${action("download", "Download", '<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>')}${action("delete", "Delete", '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>', "mini-delete")}</div></div>`;
       })
       .join("");
     const chosenRecording = recordings.find(
@@ -297,16 +328,13 @@
     if (audio.dataset.media !== chosenRecording?.audioId) {
       audio.dataset.media = chosenRecording?.audioId || "";
       audio.removeAttribute("src");
-      audio.hidden = !chosenRecording?.audioId;
+      audio.hidden = true;
       ZMinutesStore.mediaURL(chosenRecording?.audioId).then((url) => {
         if (audio.dataset.media === chosenRecording?.audioId && url) {
           audio.src = url;
-          audio.hidden = false;
         }
       });
     }
-    $("downloadAudioBtn").disabled = $("transcribeAgainBtn").disabled =
-      !chosenRecording?.audioId;
     A.resizePrompts();
     A.loadImages();
   };
@@ -319,14 +347,14 @@
         );
       box.innerHTML =
         head("Tasks", "Shared by your project dashboard and calendar.") +
-        `<section class="ov-card task-create"><h2>Add a task</h2><form id="taskForm" class="task-form"><input id="taskTitle" required placeholder="What needs to be done?" value="${e(d.title || "")}"><input id="taskDue" type="date" value="${e(d.due || A.day)}"><label>Remind at<input id="taskRemindAt" type="datetime-local" value="${e(d.remindAt || "")}"></label><select id="taskMeeting"><option value="">No linked meeting</option>${meetings()
+        `<section class="ov-card task-create"><h2>Add a task</h2><form id="taskForm" class="task-form"><label>Task<input id="taskTitle" required placeholder="What needs to be done?" value="${e(d.title || "")}"></label><label>Due date<input id="taskDue" type="date" value="${e(d.due || A.day)}"></label><label>Remind at<input id="taskRemindAt" type="datetime-local" value="${e(d.remindAt || "")}"></label><label>Meeting<select id="taskMeeting"><option value="">No linked meeting</option>${meetings()
           .map(
             (m) =>
               `<option value="${e(m.id)}" ${d.meetingId === m.id ? "selected" : ""}>${e(m.title)}</option>`,
           )
           .join(
             "",
-          )}</select><button class="primary">+ Add task</button></form></section><section class="ov-card">${ts.map((t) => `<article class="task-card"><span class="signal ${light(t)}" title="${label(t)}"></span><div><strong>${e(t.title)}</strong><small>${label(t)} · ${e(t.due || "No due date")}${t.remindAt ? " · Reminder " + e(date(t.remindAt)) : ""}${t.meetingId ? " · " + e(A.data.meetings.find((m) => m.id === t.meetingId)?.title || "Unlinked meeting") : ""}</small><details class="task-edit"><summary>Edit</summary><form data-task-edit="${e(t.id)}"><input name="title" required value="${e(t.title)}" aria-label="Task title"><input name="due" type="date" value="${e(t.due)}"><label>Remind at<input name="remindAt" type="datetime-local" value="${e(t.remindAt)}"></label><button class="secondary">Save changes</button></form></details></div><select data-task-status="${e(t.id)}" aria-label="Task status"><option value="in-progress" ${t.status !== "done" ? "selected" : ""}>In progress</option><option value="done" ${t.status === "done" ? "selected" : ""}>Completed</option></select><button class="mini-delete" data-delete-task="${e(t.id)}" aria-label="Delete task">×</button></article>`).join("") || empty("No tasks yet.")}</section>`;
+          )}</select></label><button class="primary">+ Add task</button></form></section><section class="ov-card">${ts.map((t) => `<article class="task-card"><span class="signal ${light(t)}" title="${label(t)}"></span><div><strong>${e(t.title)}</strong><small>${label(t)} · ${e(t.due || "No due date")}${t.remindAt ? " · Reminder " + e(date(t.remindAt)) : ""}${t.meetingId ? " · " + e(A.data.meetings.find((m) => m.id === t.meetingId)?.title || "Unlinked meeting") : ""}</small><details class="task-edit"><summary>Edit</summary><form data-task-edit="${e(t.id)}"><input name="title" required value="${e(t.title)}" aria-label="Task title"><input name="due" type="date" value="${e(t.due)}"><label>Remind at<input name="remindAt" type="datetime-local" value="${e(t.remindAt)}"></label><button class="secondary">Save changes</button></form></details></div><select data-task-status="${e(t.id)}" aria-label="Task status"><option value="in-progress" ${t.status !== "done" ? "selected" : ""}>In progress</option><option value="done" ${t.status === "done" ? "selected" : ""}>Completed</option></select><button class="mini-delete" data-delete-task="${e(t.id)}" aria-label="Delete task">×</button></article>`).join("") || empty("No tasks yet.")}</section>`;
     } else if (A.section === "calendar") {
       const d = new Date(A.day + "T12:00:00"),
         y = d.getFullYear(),
@@ -372,7 +400,7 @@
         );
       box.innerHTML =
         head("Field notes", "Site observations and meeting photos.") +
-        `<section class="ov-card field-create"><h2>${d.id ? "Edit field note" : "New field note"}</h2><form id="fieldForm" class="field-form"><input id="fieldTitle" required placeholder="Observation title" value="${e(d.title || "")}"><input id="fieldLocation" placeholder="Location" value="${e(d.location || "")}"><textarea id="fieldText" placeholder="Observation and follow-up">${e(d.text || "")}</textarea><div class="field-photo-actions"><label class="field-upload">Take photo<input id="fieldCameraPhotos" type="file" accept="image/*" capture="environment" hidden></label><label class="field-upload">Choose from device<input id="fieldPhotos" type="file" accept="image/*" multiple hidden></label></div><div class="field-preview">${(d.photos || []).map((p) => `<img data-media="${e(p.mediaId)}" alt="Selected photo">`).join("")}</div><button class="primary">Save field note</button></form></section><section class="ov-card"><h2>Saved field notes</h2>${fs.map((f) => `<article class="field-card"><h3>${e(f.title)}</h3><p>${e(f.location)}</p><div class="field-text">${e(f.text)}</div><div class="field-card-photos">${f.photos.map((p) => `<img data-media="${e(p.mediaId)}" alt="${e(p.note || f.title)}">`).join("")}</div><button class="link-btn" data-edit-field="${e(f.id)}">Edit</button><button class="mini-delete" data-delete-field="${e(f.id)}" aria-label="Delete field note">×</button></article>`).join("") || empty("No standalone notes yet.")}<h2>Meeting photos</h2><div class="tiles">${photos.map((p) => `<button class="tile" data-open="${e(p.meetingId)}" data-tab="field"><img data-media="${e(p.mediaId)}" alt="${e(p.note || p.title)}"><span class="tile-cap">${e(p.note || p.title)}</span></button>`).join("")}</div></section>`;
+        `<section class="ov-card field-create"><h2>${d.id ? "Edit field note" : "New field note"}</h2><form id="fieldForm" class="field-form"><label>Title<input id="fieldTitle" required placeholder="Observation title" value="${e(d.title || "")}"></label><label>Location<input id="fieldLocation" placeholder="Location" value="${e(d.location || "")}"></label><label class="field-body-label">Observation<textarea id="fieldText" placeholder="Observation and follow-up">${e(d.text || "")}</textarea></label><div class="field-photo-actions"><label class="field-upload">Take photo<input id="fieldCameraPhotos" type="file" accept="image/*" capture="environment" hidden></label><label class="field-upload">Choose from device<input id="fieldPhotos" type="file" accept="image/*" multiple hidden></label></div><div class="field-preview">${(d.photos || []).map((p) => `<img data-media="${e(p.mediaId)}" alt="Selected photo">`).join("")}</div><button class="primary">Save field note</button></form></section><section class="ov-card"><h2>Saved field notes</h2>${fs.map((f) => `<article class="field-card"><h3>${e(f.title)}</h3><p>${e(f.location)}</p><div class="field-text">${e(f.text)}</div><div class="field-card-photos">${f.photos.map((p) => `<img data-media="${e(p.mediaId)}" alt="${e(p.note || f.title)}">`).join("")}</div><button class="link-btn" data-edit-field="${e(f.id)}">Edit</button><button class="mini-delete" data-delete-field="${e(f.id)}" aria-label="Delete field note">×</button></article>`).join("") || empty("No standalone notes yet.")}<h2>Meeting photos</h2><div class="tiles">${photos.map((p) => `<button class="tile" data-open="${e(p.meetingId)}" data-tab="field"><img data-media="${e(p.mediaId)}" alt="${e(p.note || p.title)}"><span class="tile-cap">${e(p.note || p.title)}</span></button>`).join("")}</div></section>`;
     } else if (A.section === "files") {
       const files = [
         ...A.data.files.filter((f) => f.projectId === A.project),

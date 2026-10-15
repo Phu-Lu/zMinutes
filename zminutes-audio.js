@@ -291,26 +291,6 @@
         await A.ai.transcribe(id, file, recording.id);
     });
   };
-  $("downloadAudioBtn").onclick = () =>
-    A.run(async () => {
-      const m = A.current(),
-        recording = m?.recordings.find((r) => r.id === A.selectedRecordingId),
-        item = await S.get("media", recording?.audioId);
-      if (item) A.download(item.blob, item.name);
-    });
-  $("transcribeAgainBtn").onclick = () =>
-    A.run(async () => {
-      const m = A.current();
-      if (!m?.cloudAudioAllowed)
-        throw new Error(
-          "Enable cloud transcription for this meeting in Recap first.",
-        );
-      const recording = m.recordings.find(
-        (r) => r.id === A.selectedRecordingId,
-      );
-      const item = await S.get("media", recording?.audioId);
-      if (item) await A.ai.transcribe(m.id, item.blob, recording.id);
-    });
   $("recordingList").onclick = (event) =>
     A.run(async () => {
       const button = event.target.closest("button");
@@ -368,6 +348,7 @@
         const url = await S.mediaURL(recording.audioId);
         if (!url) throw new Error("Recording audio is unavailable.");
         $("audioPlayback").src = url;
+        $("audioPlayback").hidden = false;
         await $("audioPlayback")
           .play()
           .catch(() => {});

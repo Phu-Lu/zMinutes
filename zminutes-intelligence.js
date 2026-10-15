@@ -569,12 +569,17 @@
     return m ? ZMinutesModel.fullTranscript(m).trim() : "";
   }
   const translationLanguageField = $("translationLanguage");
+  const customTranslationLanguage = $("customTranslationLanguage");
   const translationLanguageKey = "zminutes-translation-target-v1";
   try {
-    translationLanguageField.value = localStorage.getItem(translationLanguageKey) || "";
+    const saved = localStorage.getItem(translationLanguageKey) || "";
+    const listed = [...translationLanguageField.options].some((option) => option.value === saved && saved !== "custom");
+    translationLanguageField.value = listed ? saved : "custom";
+    customTranslationLanguage.value = listed ? "" : saved;
+    customTranslationLanguage.hidden = listed;
   } catch { /* Translation still works when storage is unavailable. */ }
   function translationLanguage() {
-    return translationLanguageField.value.trim().replace(/\s+/g, " ");
+    return (translationLanguageField.value === "custom" ? customTranslationLanguage.value : translationLanguageField.value).trim().replace(/\s+/g, " ");
   }
   function requireTranslationLanguage() {
     const language = translationLanguage();
@@ -641,19 +646,28 @@
     const text = currentTranslation();
     $("translationPanel").hidden = !text;
     $("translationOutput").textContent = text;
+    const draft = A.translation;
+    const sameSource = draft?.meetingId === A.meetingId && draft.source === transcriptText();
+    const languages = sameSource ? draft.detectedLanguages || [] : [];
+    $("detectedLanguage").textContent = !sameSource ? "Detect language" :
+      languages.length > 1 ? "Mixed: " + languages.join(", ") : languages[0] || "Not identified";
   };
   $("copyTranscriptBtn").onclick = () => A.run(() => copyText(transcriptText()));
   $("addTranscriptToNotesBtn").onclick = () => A.run(() => addToNotes(transcriptText(), "TRANSCRIPT:"));
   $("copyTranslationBtn").onclick = () => A.run(() => copyText(currentTranslation()));
   $("addTranslationToNotesBtn").onclick = () => A.run(() => {
     const draft = A.translation;
-    return addToNotes(currentTranslation(), "TRANSLATION (" + draft?.language + "):", draft?.language || "");
+    const from = draft?.detectedLanguages?.join(", ");
+    return addToNotes(currentTranslation(), "TRANSLATION (" + (from ? from + " → " : "") + draft?.language + "):", draft?.language || "");
   });
   translationLanguageField.oninput = () => A.showTranslation();
   translationLanguageField.onchange = () => {
+    customTranslationLanguage.hidden = translationLanguageField.value !== "custom";
     rememberTranslationLanguage();
     A.showTranslation();
   };
+  customTranslationLanguage.oninput = () => A.showTranslation();
+  customTranslationLanguage.onchange = rememberTranslationLanguage;
   $("translateTranscriptBtn").onclick = () => A.run(async () => {
     const id = A.meetingId, source = transcriptText(), language = requireTranslationLanguage();
     if (!source) throw new Error("Transcribe or enter transcript text first.");
@@ -665,12 +679,17 @@
       await run(id, async (m, c, signal) => {
         if (c.provider === "quick")
           throw new Error("Choose Gemini, OpenAI, or local Ollama in Settings to translate.");
-        const chunks = translationChunks(source), translated = [];
+        const chunks = translationChunks(source), translated = [], detected = new Set();
         for (let i = 0; i < chunks.length; i++) {
           if (signal.aborted) throw new DOMException("Canceled", "AbortError");
           transcriptAction(`Translating part ${i + 1} of ${chunks.length}…`);
-          const prompt = `Translate the following meeting transcript into ${language}. Detect the source language automatically. Preserve speaker labels, order, names, numbers, and decisions. Do not summarize, add commentary, or invent details. Return only plain translated text. This is part ${i + 1} of ${chunks.length}.\n\nTranscript:\n${chunks[i]}`;
-          const part = (await text(m, c, signal, prompt)).trim();
+          const prompt = `Translate the following meeting transcript into ${language}. Detect the source language automatically. Preserve speaker labels, order, names, numbers, and decisions. Do not summarize, add commentary, or invent details. Start with exactly one metadata line: SOURCE_LANGUAGES: followed by the detected language names in English, comma-separated. If uncertain, use Unknown. Identify the spoken content, ignoring generated labels such as Recording 1. After that first line, return only plain translated text. This is part ${i + 1} of ${chunks.length}.\n\nTranscript:\n${chunks[i]}`;
+          const raw = (await text(m, c, signal, prompt)).trim();
+          const header = raw.match(/^SOURCE_LANGUAGES:[ \t]*([^\r\n]{0,160})(?:\r?\n|$)/i);
+          const part = header ? raw.slice(header[0].length).trim() : raw;
+          if (header) for (const name of header[1].split(",").map((name) => name.trim())) {
+            if (name && name.length <= 60 && !/^(unknown|undetermined|mixed)$/i.test(name)) detected.add(name);
+          }
           if (!part) throw new Error(`The provider returned an empty translation for part ${i + 1}.`);
           translated.push(part);
         }
@@ -680,7 +699,7 @@
           transcriptAction("Meeting, transcript, or target language changed during translation. Run Translate again.", true);
           return;
         }
-        A.translation = { meetingId: id, source, language, text: result };
+        A.translation = { meetingId: id, source, language, text: result, detectedLanguages: [...detected] };
         A.showTranslation();
         transcriptAction("Translation ready. Review it before copying or adding to Notes.");
       });

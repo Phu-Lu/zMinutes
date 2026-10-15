@@ -729,6 +729,20 @@
     });
   });
   $("newMeetingBtn").onclick = $("heroNewBtn").onclick = () => A.newDialog();
+  const topMore = document.querySelector(".top-more");
+  topMore.addEventListener("click", (event) => {
+    if (event.target.closest("button")) topMore.open = false;
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!topMore.contains(event.target)) topMore.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && topMore.open) {
+      topMore.open = false;
+      topMore.querySelector("summary").focus();
+      event.preventDefault();
+    }
+  });
   $("newMeetingDialog").querySelector(".dialog-close").onclick = () =>
     $("newMeetingDialog").close();
   $("settingsNavBtn").onclick =
