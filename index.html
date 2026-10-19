@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#7360f2" />
   <meta name="description" content="A private, local-first meeting notebook." />
-  <link rel="manifest" href="manifest.webmanifest?v=36" />
+  <link rel="manifest" href="manifest.webmanifest?v=37" />
   <link rel="apple-touch-icon" href="zminutes-icon-192.png" />
-  <link rel="stylesheet" href="zminutes-tokens.css?v=36" />
-  <link rel="stylesheet" href="styles.css?v=36" />
-  <link rel="stylesheet" href="zminutes-v2.css?v=36" />
-  <link rel="stylesheet" href="zminutes-layout.css?v=36" />
-  <link rel="stylesheet" href="zminutes-ui.css?v=36" />
+  <link rel="stylesheet" href="zminutes-tokens.css?v=37" />
+  <link rel="stylesheet" href="styles.css?v=37" />
+  <link rel="stylesheet" href="zminutes-v2.css?v=37" />
+  <link rel="stylesheet" href="zminutes-layout.css?v=37" />
+  <link rel="stylesheet" href="zminutes-ui.css?v=37" />
   <title>zMinutes</title>
 </head>
 <body>
@@ -64,9 +64,18 @@
         </details>
       </div>
     </header>
+    <section id="aiJobPanel" class="ai-job-panel" aria-label="AI request progress" hidden>
+      <div class="ai-job-row"><span id="aiJobStatusHost" role="status" aria-live="polite"></span><div id="aiJobActions"><button id="dismissAiJobBtn" class="ghost" type="button" hidden>Dismiss</button></div></div>
+      <progress id="aiJobProgress" aria-label="AI request progress"></progress>
+      <details id="aiTranscriptPreview" hidden><summary>Transcript preview · not saved until complete</summary><div id="aiTranscriptPreviewText" tabindex="0"></div></details>
+    </section>
     <div id="installNotice" class="install-notice hidden" role="status" aria-live="polite"></div>
     <div id="appNotice" class="install-notice" role="status" hidden></div><button id="retrySaveBtn" class="link-btn" hidden>Retry pending saves</button>
     <div id="recordingBanner" class="install-notice" hidden><span id="recordingBannerText"></span> <button id="globalStopBtn" class="secondary">Stop and save</button></div>
+    <section id="liveDraftPanel" class="live-draft-panel" hidden aria-label="Live transcript">
+      <div class="ai-job-row"><span id="liveDraftStatus" role="status"></span><button id="stopLiveBtn" class="secondary" type="button">Stop live</button><button id="dismissLiveBtn" class="ghost" type="button" hidden>Dismiss</button></div>
+      <div id="liveDraftText" tabindex="0"></div>
+    </section>
 
     <section id="overviewView" class="view"></section>
 
@@ -102,6 +111,7 @@
         <aside class="notes-context" aria-label="Audio and transcript">
           <section class="notes-audio"><div class="notes-side-head"><h2>Audio</h2><span>Record, then transcribe</span></div>
             <div class="record-strip"><div><span id="recordDot" class="record-dot"></span><strong id="recordLabel">Not recording</strong><span id="recordTimer">00:00</span></div><button id="recordBtn" class="record-btn" aria-label="Record audio">● <span>Record</span></button></div><p id="recordStatus" class="record-status" role="status" aria-live="polite"></p><label class="audio-upload">↑ Import audio<input id="audioFileInput" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm" hidden></label>
+            <label class="live-draft-option"><input id="liveDraftEnabled" type="checkbox"> Live draft for next recording</label><p class="settings-help">Optional: sends audio to your selected transcription provider every 30 seconds while recording. Uses your configured model and API key; extra requests may increase cost. Requires this meeting's cloud transcription permission. Audio is still saved locally.</p>
             <audio id="audioPlayback" controls hidden></audio><div class="settings-actions notes-audio-actions"><button id="cancelAiBtn" class="secondary" hidden>Cancel AI request</button></div><div id="recordingList" class="recording-list"></div>
           </section>
           <div class="transcript-card"><div class="card-title"><span>◌</span><strong>Meeting transcript</strong><small id="transcriptStatus">Recording is stored locally</small></div><p id="transcriptText" class="transcript-hint">Each recorded segment is added in order. Review or move text into Notes while the meeting is in progress.</p><pre id="transcriptCombined" class="transcript-combined"></pre><details id="manualTranscript" class="manual-transcript"><summary id="manualTranscriptLabel">Add text</summary><label>Additional transcript<textarea id="transcriptInput" class="transcript-input" placeholder="Type or paste additional transcript here…"></textarea></label></details><div class="transcript-actions"><button id="copyTranscriptBtn" type="button" class="secondary">Copy transcript</button><button id="addTranscriptToNotesBtn" type="button" class="secondary">Add to Notes</button><span class="translation-source" aria-label="Source language detected automatically">From: <strong id="detectedLanguage">Detect language</strong></span><label class="translation-target">To<select id="translationLanguage" aria-label="Translate to language"><option value="">Choose language</option><option>Vietnamese</option><option>English</option><option>Korean</option><option>Chinese (Simplified)</option><option>Chinese (Traditional)</option><option>Japanese</option><option>Arabic</option><option>Bengali</option><option>Burmese</option><option>Czech</option><option>Danish</option><option>Dutch</option><option>Filipino</option><option>Finnish</option><option>French</option><option>German</option><option>Greek</option><option>Hebrew</option><option>Hindi</option><option>Hungarian</option><option>Indonesian</option><option>Italian</option><option>Khmer</option><option>Lao</option><option>Malay</option><option>Norwegian</option><option>Persian</option><option>Polish</option><option>Portuguese</option><option>Romanian</option><option>Russian</option><option>Spanish</option><option>Swahili</option><option>Swedish</option><option>Tamil</option><option>Telugu</option><option>Thai</option><option>Turkish</option><option>Ukrainian</option><option>Urdu</option><option value="custom">Other language…</option></select><input id="customTranslationLanguage" aria-label="Other target language" placeholder="Enter a language" maxlength="60" autocomplete="off" hidden /></label><button id="translateTranscriptBtn" type="button" class="secondary">Translate</button></div><p id="transcriptActionStatus" class="transcript-action-status" role="status" aria-live="polite"></p><div id="translationPanel" class="translation-panel" hidden><strong>Translation draft · review before use</strong><pre id="translationOutput"></pre><div class="transcript-actions"><button id="copyTranslationBtn" type="button" class="secondary">Copy translation</button><button id="addTranslationToNotesBtn" type="button" class="secondary">Add translation to Notes</button></div></div><button id="transcriptRecapBtn" class="secondary">Create recap from transcript</button></div>
@@ -138,26 +148,27 @@
       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button><button id="scanLegacyChangesBtn" class="secondary">Review older-app changes</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
       <section class="settings-card"><h2>Recover recordings</h2><p>Audio is checkpointed while recording. Recover saved segments after an interruption.</p><div id="recoveryList"></div></section>
       <section class="settings-card"><h2>Sync conflicts</h2><p id="conflictCount"></p><div id="conflictList"></div></section>
-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 36</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 37</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
       </div></div>
     </section>
   </main>
   </div>
   <dialog id="newMeetingDialog"><form id="newMeetingForm"><button class="dialog-close" type="button" value="cancel" aria-label="Close">×</button><p class="eyebrow">NEW MEETING</p><h2>Start in seconds</h2><label>Meeting name<input id="newTitle" required placeholder="Example: Q2 site inspection" /></label><label>Date and time<input id="newDate" type="datetime-local" /></label><label>Meeting template<select id="meetingTemplateSelect"><option value="">Blank meeting</option><option value="project">Project update</option><option value="site">Site inspection</option><option value="oneonone">1:1 meeting</option></select></label><button class="primary full" value="default" type="submit">Create meeting</button></form></dialog>
   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
-  <script src="zminutes-model.js?v=36"></script>
-  <script src="zminutes-repository.js?v=36"></script>
-  <script src="zminutes-app.js?v=36"></script>
-  <script src="zminutes-views.js?v=36"></script>
-  <script src="zminutes-editor.bundle.js?v=36"></script>
-  <script src="zminutes-rich-notes.js?v=36"></script>
-  <script src="zminutes-capture.js?v=36"></script>
-  <script src="zminutes-audio.js?v=36"></script>
-  <script src="zminutes-intelligence.js?v=36"></script>
-  <script src="zminutes-exports.js?v=36"></script>
-  <script src="zminutes-sync.js?v=36"></script>
-  <script src="zminutes-recovery.js?v=36"></script>
-  <script src="zminutes-reminders.js?v=36"></script>
-  <script src="zminutes-pwa.js?v=36"></script>
+  <script src="zminutes-model.js?v=37"></script>
+  <script src="zminutes-repository.js?v=37"></script>
+  <script src="zminutes-app.js?v=37"></script>
+  <script src="zminutes-views.js?v=37"></script>
+  <script src="zminutes-editor.bundle.js?v=37"></script>
+  <script src="zminutes-rich-notes.js?v=37"></script>
+  <script src="zminutes-capture.js?v=37"></script>
+  <script src="zminutes-audio.js?v=37"></script>
+  <script src="zminutes-intelligence.js?v=37"></script>
+  <script src="zminutes-live.js?v=37"></script>
+  <script src="zminutes-exports.js?v=37"></script>
+  <script src="zminutes-sync.js?v=37"></script>
+  <script src="zminutes-recovery.js?v=37"></script>
+  <script src="zminutes-reminders.js?v=37"></script>
+  <script src="zminutes-pwa.js?v=37"></script>
 </body>
 </html>

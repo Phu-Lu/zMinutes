@@ -1,5 +1,13 @@
 # zMinutes
 
+### Live draft (build 37)
+
+In a meeting, enable cloud transcription permission in Recap, then check **Live draft for next recording** in Audio before pressing Record. It is off by default and resets after each recording. Your selected **transcription provider/model/key** in Settings is used for both live and file transcription; no special Live-only model is forced. Only audio-capable models compatible with the provider endpoint work (Gemini and OpenAI); text-only/offline recap models are not speech recognition engines.
+
+Live sends 30-second audio chunks while recording, so text appears after that interval plus network/model processing. Extra API requests may increase costs. Draft text saves incrementally and remains available in the meeting transcript for Copy, Add to Notes, translation and Recap. **Stop live** leaves audio recording running. Failure or a slow connection stops uploads, preserves saved text, and leaves full audio available for later transcription. Stop recording saves audio first and finishes any remaining live chunks; it does not automatically upload the full recording again. Keep the app open while finishing.
+
+The shared upload adapter follows the [OpenAI transcription endpoint](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create); Live uses bounded file chunks, not a realtime-only model or a new server.
+
 zMinutes is a personal, local-first meeting notebook for desktop and Android. It is a static installable PWA: GitHub Pages serves only the app files. There is no zMinutes backend, account, or server-side meeting database.
 
 ## Install

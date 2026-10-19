@@ -56,6 +56,9 @@
     Promise.resolve()
       .then(fn)
       .catch((e) => {
+        // The active request already has a visible progress panel and Cancel.
+        // A second click must not leave an unrelated permanent error banner.
+        if (e.code === "AI_BUSY") return;
         console.error(e);
         A.notice(e.message || "The action could not finish.", true);
       });

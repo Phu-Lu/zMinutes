@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           mkdir _site
-          cp index.html styles.css zminutes-tokens.css zminutes-layout.css zminutes-v2.css zminutes-ui.css zminutes-model.js zminutes-repository.js zminutes-app.js zminutes-views.js zminutes-editor.bundle.js zminutes-rich-notes.js zminutes-capture.js zminutes-audio.js zminutes-intelligence.js zminutes-exports.js zminutes-sync.js zminutes-recovery.js zminutes-reminders.js zminutes-pwa.js zminutes-recorder.js zminutes-recorder-worklet.js sw.js manifest.webmanifest zminutes-icon.svg zminutes-icon-192.png zminutes-icon-512.png _site/
+          cp index.html styles.css zminutes-tokens.css zminutes-layout.css zminutes-v2.css zminutes-ui.css zminutes-model.js zminutes-repository.js zminutes-app.js zminutes-views.js zminutes-editor.bundle.js zminutes-rich-notes.js zminutes-capture.js zminutes-audio.js zminutes-intelligence.js zminutes-live.js zminutes-exports.js zminutes-sync.js zminutes-recovery.js zminutes-reminders.js zminutes-pwa.js zminutes-recorder.js zminutes-recorder-worklet.js sw.js manifest.webmanifest zminutes-icon.svg zminutes-icon-192.png zminutes-icon-512.png _site/
           touch _site/.nojekyll
 
       - name: Configure GitHub Pages

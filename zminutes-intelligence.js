@@ -4,7 +4,14 @@
     S = ZMinutesStore,
     KEY = "zminutes-ai-settings-v1";
   let cfg = A.safeRead(KEY),
-    job = null;
+    job = null,
+    completionTimer = null;
+  // Progress belongs to the workspace, not the provider configuration card.
+  $("aiJobStatusHost").append($("aiStatus"));
+  $("aiJobActions").prepend($("cancelAiBtn"));
+  $("cancelAiBtn").textContent = "Cancel";
+  $("dismissAiJobBtn").onclick = () => { $("aiJobPanel").hidden = true; };
+  const busyMessage = "An AI request is already running. Wait or cancel it.";
   const defaults = {
     gemini: "gemini-2.5-flash",
     openai: "gpt-4.1-mini",
@@ -284,10 +291,23 @@
     throw new Error("AI did not summarize the added transcript in enough detail. The previous recap was kept; try again or adjust the model/prompt.");
   }
   async function run(id, work) {
-    if (job)
-      throw new Error("An AI request is already running. Wait or cancel it.");
+    if (job) {
+      $("aiJobPanel").hidden = false;
+      $("aiJobPanel").scrollIntoView({ block: "nearest" });
+      const error = new Error(busyMessage);
+      error.code = "AI_BUSY";
+      throw error;
+    }
     job = new AbortController();
+    clearTimeout(completionTimer);
     A.aiBusy = true;
+    $("aiJobPanel").hidden = false;
+    $("aiJobPanel").dataset.state = "working";
+    $("aiJobProgress").hidden = false;
+    $("aiJobProgress").removeAttribute("value");
+    $("dismissAiJobBtn").hidden = true;
+    $("aiTranscriptPreview").hidden = true;
+    $("aiTranscriptPreviewText").textContent = "";
     $("cancelAiBtn").hidden = false;
     $("generateSummaryBtn").disabled = true;
     $("generateSolutionsBtn").disabled = true;
@@ -299,13 +319,20 @@
       $("aiStatus").textContent = "Working: " + m.title;
       await work(m, structuredClone(read()), job.signal);
       $("aiStatus").textContent = "Completed: " + m.title;
+      $("aiJobPanel").dataset.state = "complete";
+      $("aiTranscriptPreview").hidden = true;
+      completionTimer = setTimeout(() => { $("aiJobPanel").hidden = true; }, 6000);
     } catch (e) {
+      $("aiJobPanel").dataset.state = "error";
       $("aiStatus").textContent =
         e.name === "AbortError" ? "Canceled" : "Failed: " + e.message;
       throw e;
     } finally {
       job = null;
       A.aiBusy = false;
+      $("aiJobProgress").hidden = true;
+      $("dismissAiJobBtn").hidden = false;
+      if ($("appNotice").textContent === busyMessage) A.notice("");
       $("cancelAiBtn").hidden = true;
       $("generateSummaryBtn").disabled = false;
       $("generateSolutionsBtn").disabled = false;
@@ -732,85 +759,69 @@
     }
     return ZMinutesCapture.wav([bytes]);
   }
+  function transcriptionConfig(c = read()) {
+    const p = c.transcriptionProvider;
+    if (!["gemini", "openai"].includes(p)) throw new Error("Select Gemini or OpenAI transcription in Settings.");
+    const key = c.transcriptionKey || c.keys?.[p];
+    const model = c.transcriptionModel?.trim() || (p === "gemini"
+      ? c.provider === "gemini" ? c.model : "gemini-3.5-flash"
+      : "gpt-4o-mini-transcribe");
+    if (!key) throw new Error("Enter a " + p + " API key in Settings.");
+    return { p, key, model };
+  }
+  async function transcribePart(part, config, signal) {
+    const { p, key, model } = config;
+    if (p === "openai") {
+      const body = new FormData();
+      body.append("file", part, "segment.wav");
+      body.append("model", model);
+      const result = await request("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST", headers: { Authorization: "Bearer " + key }, body,
+      }, signal);
+      return result.text || "";
+    }
+    const data = (await S.toDataURL(part)).split(",")[1];
+    const result = await request("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent", {
+      method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({ contents: [{ parts: [
+        { text: "Transcribe the speech verbatim in its original language. Return only the transcript. Return empty text if there is no speech." },
+        { inlineData: { mimeType: "audio/wav", data } },
+      ] }] }),
+    }, signal);
+    return result.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+  }
   async function transcribe(id, blob, recordingId) {
+    if (A.live?.owns(recordingId)) throw new Error("Wait for this recording's Live draft to finish before retranscribing it.");
     return run(id, async (m, c, signal) => {
       if (!m.cloudAudioAllowed)
         throw new Error("Cloud transcription is disabled for this meeting.");
-      const p = c.transcriptionProvider,
-        key = c.transcriptionKey || c.keys?.[p];
-      const model =
-        c.transcriptionModel?.trim() ||
-        (p === "gemini"
-          ? c.provider === "gemini"
-            ? c.model
-            : "gemini-3.5-flash"
-          : "gpt-4o-mini-transcribe");
-      if (!key) throw new Error("Enter a " + p + " API key in Settings.");
+      const config = transcriptionConfig(c);
+      $("aiStatus").textContent = "Decoding audio: " + m.title;
       const decoder = new OfflineAudioContext(1, 1, 16000),
         audio = await decoder.decodeAudioData(await blob.arrayBuffer()),
         total = Math.round((audio.length * 16000) / audio.sampleRate),
         hop = 90 * 16000,
         parts = [];
+      $("aiJobProgress").max = Math.max(1, Math.ceil(total / hop));
+      $("aiJobProgress").value = 0;
       for (let start = 0; start < total; start += hop) {
         if (signal.aborted) throw new DOMException("Canceled", "AbortError");
         const part = pcmSegment(audio, start, Math.min(hop, total - start));
         $("aiStatus").textContent =
           "Transcribing " +
           m.title +
-          " · " +
-          (Math.floor(start / hop) + 1) +
+          " · completed " +
+          Math.floor(start / hop) +
           "/" +
-          Math.ceil(total / hop);
-        let result;
-        if (p === "openai") {
-          const body = new FormData();
-          body.append("file", part, "segment.wav");
-          body.append("model", model);
-          const d = await request(
-            "https://api.openai.com/v1/audio/transcriptions",
-            {
-              method: "POST",
-              headers: { Authorization: "Bearer " + key },
-              body,
-            },
-            signal,
-          );
-          result = d.text || "";
-        } else {
-          const data = (await S.toDataURL(part)).split(",")[1],
-            d = await request(
-              "https://generativelanguage.googleapis.com/v1beta/models/" +
-                encodeURIComponent(model) +
-                ":generateContent",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "x-goog-api-key": key,
-                },
-                body: JSON.stringify({
-                  contents: [
-                    {
-                      parts: [
-                        {
-                          text: "Transcribe the speech verbatim in its original language. Return only the transcript.",
-                        },
-                        { inlineData: { mimeType: "audio/wav", data } },
-                      ],
-                    },
-                  ],
-                }),
-              },
-              signal,
-            );
-          result =
-            d.candidates?.[0]?.content?.parts
-              ?.map((p) => p.text || "")
-              .join("") || "";
-        }
+          Math.ceil(total / hop) + " segments";
+        const result = await transcribePart(part, config, signal);
         parts.push(result);
+        $("aiJobProgress").value = parts.length;
+        $("aiTranscriptPreview").hidden = false;
+        $("aiTranscriptPreviewText").textContent = parts.join("\n\n");
       }
       if (signal.aborted) throw new DOMException("Canceled", "AbortError");
+      $("aiStatus").textContent = "Saving transcript: " + m.title;
       const transcript = parts.join("\n").trim();
       if (!transcript)
         throw new Error(
@@ -871,5 +882,5 @@
       await recap(id, true);
     });
   $("cancelAiBtn").onclick = () => job?.abort();
-  A.ai = { recap, solutions, transcribe, quick, pcmSegment };
+  A.ai = { recap, solutions, transcribe, quick, pcmSegment, transcriptionConfig, transcribePart };
 })();

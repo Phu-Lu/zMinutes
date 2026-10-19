@@ -316,6 +316,19 @@ const server = http.createServer((req, res) => {
       );
     }, id);
     await started;
+    assert.equal(await page.locator("#aiJobPanel").isVisible(), true);
+    assert.equal(await page.locator("#aiJobPanel #aiStatus").count(), 1);
+    assert.equal(await page.locator("#settingsView #aiStatus").count(), 0);
+    assert.equal(await page.locator("#aiJobProgress").isVisible(), true);
+    await page.evaluate(() => ZM.run(() => ZM.ai.transcribe(ZM.meetingId, new Blob())));
+    assert.equal(await page.locator("#appNotice").textContent(), "");
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.evaluate(() => ZM.nav(false));
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: path.join(root, "test-results", "transcription-progress-phone.png") });
+    await page.setViewportSize({ width: 1366, height: 900 });
+    // Emulate the stale banner left by an older build; completion clears only this warning.
+    await page.evaluate(() => ZM.notice("An AI request is already running. Wait or cancel it.", true));
     assert.match(
       transcriptionUrl,
       /\/models\/gemini-3\.5-flash:generateContent$/,
@@ -323,6 +336,12 @@ const server = http.createServer((req, res) => {
     await page.evaluate((other) => ZM.open(other), other);
     releaseAI();
     await page.evaluate(() => window.aiTest);
+    assert.equal(await page.evaluate(() => ZM.aiBusy), false);
+    assert.equal(await page.locator("#appNotice").isVisible(), false);
+    assert.equal(await page.locator("#cancelAiBtn").isVisible(), false);
+    assert.equal(await page.locator("#aiJobProgress").isVisible(), false);
+    await page.locator("#dismissAiJobBtn").click();
+    assert.equal(await page.locator("#aiJobPanel").isVisible(), false);
     assert.equal(
       await page.evaluate(
         (id) =>
@@ -336,6 +355,34 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.evaluate(() => ZM.current().transcript), "");
     await page.unroute("https://generativelanguage.googleapis.com/**");
     await page.evaluate((id) => ZM.open(id, "summary"), id);
+    let chunkCalls = 0, releaseChunk;
+    await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
+      chunkCalls++;
+      if (chunkCalls === 2) await new Promise((resolve) => { releaseChunk = resolve; });
+      try {
+        await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "Partial chunk text" }] } }] } });
+      } catch (error) {
+        // Cancel aborts the second intercepted request before its mocked response.
+        if (chunkCalls !== 2 || !/already handled|aborted/i.test(error.message)) throw error;
+      }
+    });
+    await page.evaluate(() => {
+      const audio = ZMinutesCapture.wav([new Uint8Array(91 * 16000 * 2)]);
+      window.chunkJob = ZM.ai.transcribe(ZM.meetingId, audio, ZM.current().recordings.at(-1).id)
+        .catch((error) => error.name);
+    });
+    await page.waitForFunction(() => document.getElementById("aiJobProgress").value === 1 && document.getElementById("aiJobProgress").max === 2);
+    assert.equal(await page.locator("#aiTranscriptPreviewText").textContent(), "Partial chunk text");
+    await page.locator("#aiTranscriptPreview summary").click();
+    await page.locator("#cancelAiBtn").click();
+    assert.equal(await page.evaluate(() => window.chunkJob), "AbortError");
+    assert.equal(await page.evaluate(() => ZM.aiBusy), false);
+    assert.equal(await page.locator("#aiJobProgress").isVisible(), false);
+    assert.equal(await page.evaluate(() => ZMinutesModel.fullTranscript(ZM.current())), "Recording 2:\nTranscript for original meeting");
+    releaseChunk?.();
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    await page.locator("#dismissAiJobBtn").click();
+    console.log("PASS: workspace AI progress, duplicate-click cleanup, partial chunk preview and cancellation retain saved transcript");
     const aiCalls = [];
     await page.route(
       "https://generativelanguage.googleapis.com/**",
@@ -1497,6 +1544,54 @@ const server = http.createServer((req, res) => {
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.locator(".top-more summary").click();
     await page.screenshot({ path: path.join(root, "test-results", "toolbar-more-desktop.png") });
+    await page.keyboard.press("Escape");
+    await page.unroute("https://generativelanguage.googleapis.com/**");
+    await page.unroute("https://api.openai.com/**");
+    const liveCalls = [];
+    await page.route("https://generativelanguage.googleapis.com/**", async (route) => {
+      liveCalls.push({ provider: "gemini", url: route.request().url() });
+      await route.fulfill({ json: { candidates: [{ content: { parts: [{ text: "Gemini live text" }] } }] } });
+    });
+    await page.route("https://api.openai.com/**", async (route) => {
+      liveCalls.push({ provider: "openai", body: route.request().postData() });
+      await route.fulfill({ json: { text: "OpenAI live text" } });
+    });
+    for (const provider of ["gemini", "openai"]) {
+      const liveId = await page.evaluate(async (provider) => {
+        const id = crypto.randomUUID();
+        await ZM.save("meetings", { id, title: "Live test " + provider, projectId: "inbox", cloudAudioAllowed: true });
+        await ZM.open(id, "note"); ZM.nav(false);
+        document.getElementById("transcriptionProvider").value = provider;
+        document.getElementById("transcriptionModel").value = "chosen-" + provider + "-audio-model";
+        document.getElementById("transcriptionApiKey").value = "test-key";
+        return id;
+      }, provider);
+      await page.locator("#liveDraftEnabled").check();
+      await page.locator("#recordBtn").click();
+      await page.waitForFunction(() => document.getElementById("recordLabel").textContent === "Recording");
+      assert.equal(await page.locator("#liveDraftPanel").isVisible(), true);
+      await page.waitForTimeout(1200);
+      await page.locator("#globalStopBtn").click();
+      await page.waitForFunction(() => !ZM.recording && !ZM.live.busy);
+      assert.equal(await page.locator("#liveDraftEnabled").isChecked(), false);
+      const saved = await page.evaluate((id) => {
+        const m = ZM.data.meetings.find((m) => m.id === id);
+        return { recordings: m.recordings.length, segments: m.transcriptSegments.length, text: ZMinutesModel.fullTranscript(m) };
+      }, liveId);
+      assert.equal(saved.recordings, 1); assert.equal(saved.segments, 1);
+      assert.match(saved.text, /live text/);
+      const calls = liveCalls.filter((call) => call.provider === provider);
+      assert.equal(calls.length, 1, "Live stop must not retranscribe full audio automatically");
+      assert.ok((calls[0].url || calls[0].body).includes("chosen-" + provider + "-audio-model"));
+    }
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.evaluate(() => { ZM.nav(false); window.scrollTo(0, 0); });
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: path.join(root, "test-results", "live-draft-phone.png") });
+    await page.reload();
+    await page.waitForFunction(() => window.ZM?.ready);
+    assert.ok(await page.evaluate(() => ZM.data.meetings.filter((m) => m.title.startsWith("Live test ")).every((m) => m.recordings.length === 1 && m.transcriptSegments.length === 1)));
+    console.log("PASS: opt-in Live draft captures audio, respects custom Gemini/OpenAI models, saves transcript and avoids duplicate transcription");
     await contextB.close();
     await context.close();
   } finally {

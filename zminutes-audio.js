@@ -14,6 +14,8 @@
   function reset() {
     clearInterval(timer);
     A.recording = false;
+    $("liveDraftEnabled").disabled = false;
+    $("liveDraftEnabled").checked = false;
     $("recordBtn").disabled = false;
     $("recordBtn").innerHTML = "● <span>Record</span>";
     $("recordDot").classList.remove("live");
@@ -69,12 +71,15 @@
       });
       await S.discardSession(r.session.id);
       message("Audio saved on this device.");
+      if (r.live) A.live.finish(r.live);
       if (
+        !r.live &&
         A.data.meetings.find((m) => m.id === r.session.meetingId)
           ?.cloudAudioAllowed
       )
         A.run(() => A.ai.transcribe(r.session.meetingId, blob, recording.id));
     } catch (e) {
+      if (r.live) { A.live.stop(r.live, "Recording needs recovery."); A.live.finish(r.live); }
       message("Recording remains in recovery: " + e.message, true);
       A.notice(
         "Recording needs recovery. Open Settings → Recover recordings.",
@@ -96,6 +101,14 @@
     }
     const m = A.current();
     if (!m) return;
+    let liveConfig;
+    if ($("liveDraftEnabled").checked) {
+      try {
+        if (A.live.busy) throw new Error("Wait for the previous Live draft to finish.");
+        if (!m.cloudAudioAllowed) throw new Error("Enable cloud transcription for this meeting in Recap before using Live draft.");
+        liveConfig = A.ai.transcriptionConfig();
+      } catch (error) { message(error.message, true); return; }
+    }
     if (!isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       message("Recording requires HTTPS and microphone support.", true);
       return;
@@ -109,6 +122,7 @@
       return;
     }
     // These calls must happen synchronously inside the user gesture, before any storage/network await.
+    $("liveDraftEnabled").disabled = true;
     const context = new Context(),
       resume = context.resume();
     resume.catch(() => {});
@@ -118,7 +132,7 @@
     A.recording = true;
     $("recordBtn").innerHTML = "× <span>Cancel</span>";
     message("Connecting to microphone…");
-    let stream, engine;
+    let stream, engine, active;
     try {
       const opening = navigator.mediaDevices
         .getUserMedia({ audio: true })
@@ -144,8 +158,8 @@
           title: m.title,
           created: Date.now(),
           rate: 16000,
-        },
-        active = { session, index: 0, buffers: [], writes: Promise.resolve() };
+        };
+      active = { session, index: 0, buffers: [], writes: Promise.resolve() };
       r.sessionId = session.id;
       await Promise.race([
         bounded(
@@ -156,9 +170,14 @@
         cancel,
       ]);
       if (r.canceled) throw new Error("Recording canceled");
-      engine = new Capture(stream, context, (bytes) =>
-        active.buffers.push(bytes),
-      );
+      engine = new Capture(stream, context, (bytes) => {
+        active.buffers.push(bytes);
+        if (liveConfig) {
+          // Start only after capture produces audio; failed mic startup sends nothing.
+          active.live ||= A.live.start(session, liveConfig);
+          A.live.push(active.live, bytes);
+        }
+      });
       active.engine = engine;
       await Promise.race([
         bounded(
@@ -204,6 +223,7 @@
       );
     } catch (e) {
       r.canceled = true;
+      if (active?.live) { A.live.stop(active.live, "Audio startup failed."); A.live.finish(active.live); }
       engine?.abort();
       stream?.getTracks().forEach((t) => t.stop());
       if (context.state !== "closed") context.close().catch(() => {});
@@ -304,7 +324,7 @@
         recording = m?.recordings.find((r) => r.id === id);
       if (button.dataset.deleteRecording) {
         if (!recording) throw new Error("Recording not found.");
-        if (A.aiBusy)
+        if (A.aiBusy || A.live?.owns(id))
           throw new Error(
             "Finish or cancel the current AI request before deleting audio.",
           );
