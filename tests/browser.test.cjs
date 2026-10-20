@@ -1624,11 +1624,11 @@ const server = http.createServer((req, res) => {
     assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
     await feedbackPage.locator("#appNotice button").click();
     assert.equal(await feedbackPage.locator("#appNotice").isVisible(), false);
-    await feedbackPage.evaluate(() => {
-      ZM.feedback.show("test-critical", "Not saved", { critical: true, error: true, label: "Unsaved test data" });
-      document.activeElement.blur();
-    });
     await feedbackPage.mouse.move(0, 0);
+    await feedbackPage.evaluate(() => {
+      document.activeElement.blur();
+      ZM.feedback.show("test-critical", "Not saved", { critical: true, error: true, label: "Unsaved test data" });
+    });
     await feedbackPage.clock.runFor(8001);
     assert.equal(await feedbackPage.locator("#appNotice").isVisible(), false);
     assert.equal(await feedbackPage.locator(".issue-badge").filter({ hasText: "Unsaved test data" }).isVisible(), true);
