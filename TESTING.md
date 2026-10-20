@@ -1,4 +1,8 @@
-# Build 36 verification
+# Build 39 verification
+
+Personal Notes coverage: isolated journals, concurrent edits/manual resolution, image sync without audio, delete tombstones, backup v4 and older-backup preservation. `tests/personal.browser.cjs` covers standalone creation, checklist, image deletion guard, reload, 360/412/800/1366 layouts, synthetic microphone recording, cloud permission, selected transcription configuration, review/insert once, local audio deletion, trash/restore, embedded-image DOCX and two isolated devices using the production Notes sync adapter. It runs as a required part of `npm run test:browser`.
+
+Physical Pixel 6 / Zebra ET40 testing and live paid-provider testing remain user acceptance checks. Meeting Live no-text is still an open issue, outside this release.
 
 ## Automated
 

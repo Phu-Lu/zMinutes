@@ -18,7 +18,7 @@
   function open() {
     if (opening) return opening;
     opening = new Promise((resolve, reject) => {
-      const r = indexedDB.open("zminutes-local", 2);
+      const r = indexedDB.open("zminutes-local", 3);
       r.onupgradeneeded = () => {
         for (const name of [
           "records",
@@ -28,6 +28,8 @@
           "meta",
           "sessions",
           "chunks",
+          "personalNotes",
+          "personalJournal",
         ])
           if (!r.result.objectStoreNames.contains(name))
             r.result.createObjectStore(name);
@@ -315,7 +317,7 @@
   async function removeMediaIfUnreferenced(id) {
     if (!id) return false;
     return serial(async () => {
-      const linked = (await all("entities")).some(({ value }) => {
+      const linked = [...await all("entities"), ...await all("personalNotes"), ...await all("personalJournal")].some(({ value }) => {
         if (!value) return false;
         if (value.audioId === id || value.mediaId === id) return true;
         if (value.recordings?.some((r) => r.audioId === id)) return true;
@@ -364,9 +366,11 @@
       const a = await get("media", f.mediaId);
       if (a) f.data = await toDataURL(a.blob);
     }
-    return { app: "zMinutes", version: 3, ...data };
+    const notes = window.ZMinutesPersonalStore ? await ZMinutesPersonalStore.portable() : undefined;
+    return { app: "zMinutes", version: notes ? 4 : 3, ...data, ...(notes ? {notes} : {}) };
   }
   async function restore(raw) {
+    const personal = window.ZMinutesPersonalStore ? await ZMinutesPersonalStore.prepareRestore(raw) : null;
     const data = M.validateBackup(raw),
       media = [];
     for (const kind of M.kinds)
@@ -405,7 +409,13 @@
           rows.push({ kind, id, value, heads: [op.id] });
         }
       }
-      await transaction(["entities", "journal", "media"], (tx) => {
+      const personalRows = personal ? await ZMinutesPersonalStore.restoreRows(personal) : [];
+      await transaction(["entities", "journal", "media", "personalNotes", "personalJournal"], (tx) => {
+        for (const {row,op} of personalRows) {
+          tx.objectStore("personalNotes").put(row,row.id);
+          tx.objectStore("personalJournal").put(op,op.id);
+        }
+        for (const item of personal?.media || []) tx.objectStore("media").put(item,item.id);
         for (const item of media) tx.objectStore("media").put(item, item.id);
         for (const r of rows)
           tx.objectStore("entities").put(r, M.key(r.kind, r.id));
@@ -527,6 +537,7 @@
       )
         throw new Error("Invalid Drive changes");
       M.reduce(b.ops);
+      if (b.ops.some(o => o.kind === "notes")) throw new Error("Personal Notes require their separate sync journal");
       for (const [id, m] of Object.entries(b.media || {})) {
         if (!m.data?.startsWith("data:image/"))
           throw new Error("Unsupported synced attachment");
@@ -607,6 +618,7 @@
     });
   }
   window.ZMinutesStore = {
+    transaction, serial, convert,
     open,
     init,
     snapshot,

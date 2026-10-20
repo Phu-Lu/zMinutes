@@ -1,6 +1,8 @@
 import { Editor, Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
 import { Markdown } from "@tiptap/markdown";
 
 const MeetingImage = Node.create({
@@ -18,7 +20,7 @@ const MeetingImage = Node.create({
       img.className = "note-inline-photo";
       img.alt = "Meeting photo";
       img.dataset.photoId = node.attrs.photoId;
-      const photo = window.ZM?.current()?.photos.find((item) => item.id === node.attrs.photoId);
+      const photo = this.options.resolvePhoto?.(node.attrs.photoId) || window.ZM?.current()?.photos.find((item) => item.id === node.attrs.photoId);
       if (photo?.mediaId)
         window.ZMinutesStore.mediaURL(photo.mediaId).then((url) => { if (url) img.src = url; });
       else img.alt = "Photo unavailable";
@@ -72,13 +74,13 @@ function legacyDocument(markdown) {
     return { doc: plainDocument(markdown), warning: "Markdown was kept as literal text; the original is saved in Recovery." };
   }
 }
-function create(host, onUpdate) {
+function create(host, onUpdate, options = {}) {
   return new Editor({
     element: host,
-    extensions,
+    extensions: options.personal ? [StarterKit.configure({link:false}), Underline, TaskList, TaskItem.configure({nested:true}), MeetingImage.configure({resolvePhoto: options.resolvePhoto})] : extensions,
     content: empty(),
     editable: false,
-    editorProps: { attributes: { class: "note-wysiwyg", role: "textbox", "aria-label": "Meeting Notes", "aria-multiline": "true" } },
+    editorProps: { attributes: { class: "note-wysiwyg", role: "textbox", "aria-label": options.personal ? "Personal note" : "Meeting Notes", "aria-multiline": "true" } },
     onUpdate: () => onUpdate(),
   });
 }

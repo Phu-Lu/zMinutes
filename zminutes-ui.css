@@ -399,3 +399,36 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
   .sb:not(.open) .new-project { justify-content: center; }
   .sb:not(.open) .new-project-label { display: none; }
 }
+.personal-workspace { display:grid; grid-template-columns:280px minmax(0,1fr); gap:20px; align-items:start; }
+.personal-list,.personal-detail { min-width:0; background:white; border:1px solid #e4dff4; border-radius:18px; padding:20px; }
+.personal-list { display:grid; gap:12px; position:sticky; top:90px; }
+.personal-list input,.personal-list select,.personal-detail input:not([type=checkbox]),.personal-detail textarea { width:100%; box-sizing:border-box; min-height:44px; font:inherit; border:1px solid #ddd6f3; border-radius:10px; padding:10px 12px; }
+#pnTitle { font-size:24px; font-weight:700; margin:12px 0; }
+#pnList { display:grid; gap:8px; max-height:65vh; overflow:auto; }
+.personal-item { display:grid; text-align:left; gap:6px; width:100%; padding:14px; background:#faf9ff; border:1px solid transparent; border-radius:12px; white-space:normal; overflow-wrap:anywhere; }
+.personal-item.selected { background:#eeeaff; border-color:#7360f2; }
+.personal-item span,.personal-item small { color:#6b6780; font-size:13px; }
+.personal-actions,.personal-tools { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; align-items:center; }
+.personal-actions button,.personal-tools button,.personal-tools label { min-height:44px; padding:8px 12px; font-size:13px; border-radius:9px; }
+#personalView button:not(.primary):not(.personal-item) { font-family:inherit; color:#514398; background:#f1edff; border:1px solid transparent; min-height:40px; padding:8px 12px; border-radius:9px; cursor:pointer; }
+#personalView button:hover { background:#e8e1ff; }
+#personalView button:disabled { opacity:.5; cursor:not-allowed; }
+#personalView label { font-size:13px; color:#625a7b; }
+#personalView summary { min-height:44px; padding:12px 0; cursor:pointer; font-weight:600; }
+.personal-tools { position:sticky; top:76px; background:white; z-index:2; padding:8px 0; border-bottom:1px solid #eee; }
+#pnEditor { border:1px solid #ddd6f3; border-radius:12px; padding:16px; min-height:300px; }
+#pnEditor .ProseMirror { min-height:270px; outline:none; overflow-wrap:anywhere; }
+#pnEditor img { max-width:100%; height:auto; }
+#pnEditor ul[data-type=taskList] { list-style:none; padding-left:8px; }
+#pnEditor ul[data-type=taskList]>li { display:flex; gap:10px; align-items:flex-start; }
+#pnEditor ul[data-type=taskList]>li>div { flex:1; min-width:0; }
+#pnEditor ul[data-type=taskList]>li>label { flex:0 0 24px; display:flex; margin:0; padding:0; }
+#pnEditor ul[data-type=taskList] input { min-height:24px; width:24px; margin:0; }
+.personal-audio { margin-top:24px; border-top:1px solid #e4dff4; padding-top:16px; }
+.personal-recording { border:1px solid #e4dff4; border-radius:12px; padding:14px; margin:12px 0; }
+.personal-recording audio { display:block; width:100%; margin:12px 0; }
+#pnTranscript { min-height:180px; resize:vertical; }
+#pnConflicts { margin-bottom:12px; padding:12px; background:#fff8e7; border-radius:12px; }
+#pnConflicts pre { white-space:pre-wrap; max-height:240px; overflow:auto; }
+#pnSave { color:#6b6780; font-size:12px; }
+@media(max-width:700px) { .personal-workspace {grid-template-columns:minmax(0,1fr)} .personal-list {position:static} #personalView:not(.personal-open) .personal-detail {display:none} #personalView.personal-open .personal-list {display:none} .personal-detail {padding:14px} .personal-tools {top:64px} }

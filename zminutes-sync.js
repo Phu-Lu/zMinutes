@@ -151,14 +151,14 @@
       })
     ).id);
   }
-  async function upload(bundle) {
+  async function upload(bundle, namespace = "changes-v3") {
     const batch = crypto.randomUUID(),
       boundary = "zm_" + batch,
       metadata = {
         name: "zminutes-changes-" + batch + ".json",
         mimeType: "application/json",
         parents: [await getFolder()],
-        appProperties: { zminutes: "changes-v3" },
+        appProperties: { zminutes: namespace },
       },
       body = new Blob([
         "--" + boundary + "\r\nContent-Type: application/json\r\n\r\n",
@@ -182,7 +182,7 @@
       );
     for (let attempt = 0; attempt < 3; attempt++) {
       const visible = await list(
-        "trashed=false and appProperties has { key='zminutes' and value='changes-v3' }",
+        "trashed=false and appProperties has { key='zminutes' and value='" + (payload.format === "notes-v1" ? "notes-v1" : "changes-v3") + "' }",
       );
       if (visible.some((item) => item.id === file.id)) return;
       if (attempt < 2)
@@ -210,6 +210,7 @@
       await A.flush();
       status("Connecting to Drive…");
       await ensureAuthorized();
+      const notesResult = await A.personal?.sync({list,api,upload,verifyUpload});
       const seen = new Set((await S.get("meta", "drive-seen-v3")) || []),
         bundles = [],
         received = [];
@@ -291,7 +292,7 @@
         !pending.some((op) => op.kind !== "projects" || op.entityId !== "inbox")
       ) {
         status(
-          "No Drive data found. Check the Google account and Client ID before adding meetings.",
+          notesResult?.hasNotes ? (notesResult.conflicts ? "Notes synced · review Notes conflicts" : "Notes synced · no meeting data on Drive") : "No Drive data found. Check the Google account and Client ID before adding meetings.",
         );
         return;
       }
@@ -309,7 +310,7 @@
       }
       await A.renderConflicts();
       status(
-        A.conflicts.length
+        notesResult?.conflicts ? "Notes sync conflicts · review Personal Notes" : A.conflicts.length
           ? `${A.conflicts.length} sync conflict(s) · review Settings before editing those items`
           : (await S.pendingV3()).length
             ? "New changes are waiting for sync"
@@ -372,6 +373,7 @@
         throw new Error("Finish recording and AI requests before restoring.");
       const raw = JSON.parse(await file.text());
       ZMinutesModel.validateBackup(raw);
+      window.ZMinutesPersonalStore?.validate(raw);
       if (
         !confirm(
           "Replace this device’s data with the backup? Current data will be downloaded first.",

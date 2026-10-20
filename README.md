@@ -1,5 +1,13 @@
 # zMinutes
 
+## Personal Notes — build 39
+
+Open **Notes** above Projects for a separate personal notebook. Notes support rich text, checklists, pictures, search, labels, pin/archive/trash, and PDF/DOCX export. Record audio, explicitly allow cloud transcription, then Transcribe using the provider/model in Settings. Review the text before Insert (marked cursor) or Append; audio remains local and deleting it preserves inserted text.
+
+Personal text and pictures sync through an isolated `notes-v1` Drive journal. Audio is not uploaded. Conflicts are reviewed in Notes, never auto-resolved. Backup v4 includes local Notes/audio; restoring an older backup preserves personal Notes. IndexedDB v3 adds separate personal stores: older cached clients cannot open the upgraded database. Update all devices; close older tabs/apps before opening build 39. Do not clear browser data. Meeting records and their Drive journal are unchanged.
+
+The reported meeting **Live draft not displaying text** issue remains separate and is not claimed fixed by this release.
+
 Build 38 consolidates notifications (4-second success, 8-second errors, dismiss and hover/focus pause) while retaining compact warnings for unsaved data/interrupted audio. Settings uses expandable counts for Sync conflicts and Interrupted recordings; installation remains in More. Live draft is next to recording controls, with a link to meeting cloud permission when needed. Deployment must pass the full browser suite before Pages updates.
 
 ### Live draft (build 37)

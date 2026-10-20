@@ -59,13 +59,22 @@
   }
   function normalize(kind, raw) {
     if (
-      !kinds.includes(kind) ||
+      (!kinds.includes(kind) && kind !== "notes") ||
       !raw ||
       typeof raw !== "object" ||
       !text(raw.id)
     )
       throw new Error("Invalid " + kind + " record");
     const r = { id: raw.id };
+    if (kind === "notes") return {
+      ...r, title: text(raw.title), updated: Number(raw.updated) || 0,
+      noteDoc: noteDoc(raw.noteDoc), note: noteText(raw.noteDoc),
+      labels: [...new Set((Array.isArray(raw.labels) ? raw.labels : []).filter(x => typeof x === "string").map(x => x.trim()).filter(Boolean))],
+      pinned: !!raw.pinned, archived: !!raw.archived, trashed: !!raw.trashed,
+      cloudAudioAllowed: !!raw.cloudAudioAllowed,
+      photos: list(raw.photos).map(p => ({ id: text(p.id), mediaId: text(p.mediaId), ...(p.data ? {data: text(p.data)} : {}) })),
+      recordings: list(raw.recordings).map(a => ({ id: text(a.id), audioId: text(a.audioId), label: text(a.label), createdAt: Number(a.createdAt) || 0, transcript: text(a.transcript), inserted: !!a.inserted, ...(a.data ? {data: text(a.data)} : {}) })),
+    };
     if (kind === "projects")
       return {
         ...r,
@@ -184,7 +193,8 @@
     const copy = normalize(kind, value);
     delete copy.audio;
     delete copy.audioId;
-    delete copy.recordings;
+    if (kind === "notes") copy.recordings = copy.recordings.map(({audioId, data, ...r}) => r);
+    else delete copy.recordings;
     return copy;
   }
   const key = (kind, id) => kind + ":" + id;
@@ -224,7 +234,7 @@
       if (
         !op ||
         !text(op.id) ||
-        !kinds.includes(op.kind) ||
+        (!kinds.includes(op.kind) && op.kind !== "notes") ||
         !text(op.entityId) ||
         !Array.isArray(op.parents) ||
         op.parents.some((p) => typeof p !== "string" || p === op.id)

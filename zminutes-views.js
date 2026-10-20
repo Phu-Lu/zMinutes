@@ -96,6 +96,8 @@
         ? "overviewView"
         : A.section === "meetings"
           ? "homeView"
+          : A.section === "personal"
+            ? "personalView"
           : A.section === "settings"
             ? "settingsView"
             : "placeholderView";
@@ -105,6 +107,7 @@
       "homeView",
       "settingsView",
       "placeholderView",
+      "personalView",
     ])
       $(id).classList.toggle("hidden", id !== view);
     $("backBtn").classList.toggle("hidden", !A.meetingId);
@@ -112,7 +115,9 @@
     if (A.meetingId) A.renderEditor();
     else if (A.section === "overview") A.renderOverview();
     else if (A.section === "meetings") A.renderMeetings();
+    else if (A.section === "personal") A.run(() => A.personal?.render());
     else if (A.section !== "settings") A.renderSection();
+    if (A.section === "personal" && !A.meetingId) { $("crumbs").textContent = "Personal Notes"; $("newMeetingBtn").classList.add("hidden"); }
     A.loadImages();
   };
   A.renderOverview = () => {

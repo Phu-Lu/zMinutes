@@ -1113,7 +1113,7 @@ const server = http.createServer((req, res) => {
           files: q.includes("appProperties")
             ? (hideDrive
                 ? []
-                : drive.filter((f) => !withheldUploadIds.has(f.id) && (!q.includes("value='changes-") || q.includes("value='" + f.appProperties?.zminutes + "'")))
+                : drive.filter((f) => !withheldUploadIds.has(f.id) && (!q.includes("value='") || q.includes("value='" + f.appProperties?.zminutes + "'")))
               ).map(({ payload, ...f }) => f)
             : q.includes("name='zminutes-sync.json'")
               ? legacyFiles.map(({ payload, ...f }) => f)

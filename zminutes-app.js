@@ -120,6 +120,7 @@
     A.saveTimer = setTimeout(() => A.run(A.flush), 350);
   };
   A.flush = async () => {
+    await A.personal?.flush();
     A.richNotes?.flushPending();
     clearTimeout(A.saveTimer);
     for (const [key, p] of [...A.pending]) {
@@ -154,6 +155,7 @@
     await A.renderConflicts();
   };
   A.navigate = async (section, project = A.project) => {
+    if (A.personal?.busy()) throw new Error("Stop recording or cancel transcription in Notes before leaving.");
     await A.flush();
     A.section = section;
     A.project = project;
@@ -162,6 +164,7 @@
     A.nav(false);
   };
   A.open = async (id, tab = "note") => {
+    if (A.personal?.busy()) throw new Error("Finish the current Notes audio task first.");
     await A.flush();
     const m = A.data.meetings.find((m) => m.id === id);
     if (!m) return;

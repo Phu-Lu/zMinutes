@@ -242,7 +242,7 @@
   }
   async function renderRecovery() {
     const sessions = await S.all("sessions");
-    const interrupted = sessions.filter((s) => s.id !== recording?.session.id);
+    const interrupted = sessions.filter((s) => !s.noteId && s.id !== recording?.session.id);
     $("recordingRecoveryCount").textContent = String(interrupted.length);
     if (!interrupted.length) A.feedback?.resolve("recording-recovery");
     else if (A.feedback) A.notice("Interrupted audio is available on this device.", true, {
