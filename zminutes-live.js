@@ -3,10 +3,12 @@
   const A = ZM, $ = A.$;
   const limit = 30 * 16000 * 2;
   let current = null;
-  const status = (s, message) => {
+  const status = (s, message, terminal = false, error = false) => {
     if (current !== s) return;
     $("liveDraftPanel").hidden = false;
-    $("liveDraftStatus").textContent = `${s.title} · ${message}`;
+    const text = `${s.title} · ${message}`;
+    if (A.feedback) A.feedback.show("live", text, { target: "liveDraftStatus", busy: !terminal, error });
+    else $("liveDraftStatus").textContent = text;
   };
   function stop(s, reason) {
     if (!s || s.failed) return;
@@ -14,7 +16,7 @@
     s.controller.abort();
     s.buffers = [];
     s.bytes = 0;
-    status(s, `${reason} Saved draft kept. Audio capture is independent; use Transcribe after saving for a full transcript.`);
+    status(s, `${reason} Saved draft kept. Audio capture is independent; use Transcribe after saving for a full transcript.`, true, true);
     $("stopLiveBtn").hidden = true;
     $("dismissLiveBtn").hidden = false;
   }
@@ -83,7 +85,7 @@
     if (!s.failed) status(s, "Audio saved · finishing Live draft…");
     await s.tail;
     s.finished = true;
-    if (!s.failed) status(s, s.text.length ? "Live draft saved. Review before using it in Notes or Recap." : "No speech text returned. Audio is saved; you can transcribe it again.");
+    if (!s.failed) status(s, s.text.length ? "Live draft saved. Review before using it in Notes or Recap." : "No speech text returned. Audio is saved; you can transcribe it again.", true);
     if (current === s) {
       $("stopLiveBtn").hidden = true;
       $("dismissLiveBtn").hidden = false;

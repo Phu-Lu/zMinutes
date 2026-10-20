@@ -54,6 +54,7 @@
   };
   A.run = (fn) =>
     Promise.resolve()
+      .then(() => A.feedback?.dismiss("app"))
       .then(fn)
       .catch((e) => {
         // The active request already has a visible progress panel and Cancel.
@@ -88,7 +89,7 @@
           : A.saving > 1
             ? "Saving…"
             : "Saved";
-        if (!A.pending.size) $("retrySaveBtn").hidden = true;
+        if (!A.pending.size) { $("retrySaveBtn").hidden = true; A.feedback?.resolve("save"); }
         return copy;
       } catch (e) {
         $("saveState").textContent = "Save failed";
@@ -104,6 +105,7 @@
       A.notice(
         "Save failed. Your unsaved changes remain open: " + e.message,
         true,
+        { source: "save", critical: true, label: "Unsaved data", action: () => $("retrySaveBtn").focus() },
       );
     });
     return result;
@@ -164,6 +166,9 @@
     const m = A.data.meetings.find((m) => m.id === id);
     if (!m) return;
     A.meetingId = id;
+    A.feedback?.dismiss("transcript");
+    A.feedback?.dismiss("recap");
+    if (!A.recording) A.feedback?.dismiss("audio");
     $("transcriptActionStatus").textContent = "";
     A.project = m.projectId;
     A.tab = tab;
@@ -330,9 +335,7 @@
           `<article class="ov-card"><h3>Conflicting ${A.esc(c.kind)}: ${A.esc(c.versions.find((v) => v.value)?.value.title || c.id)}</h3><p>Both versions are retained. Select the version to keep.</p>${c.versions.map((v, j) => `<details><summary>Version ${j + 1}${v.value ? "" : " — Deleted"}</summary><pre>${A.esc(JSON.stringify(v.value, null, 2))}</pre><button class="secondary" data-resolve="${i}" data-version="${j}">Use this version</button></details>`).join("")}</article>`,
       )
       .join("");
-    $("conflictCount").textContent = conflicts.length
-      ? conflicts.length + " conflicts need attention"
-      : "No sync conflicts";
+    $("conflictCount").textContent = String(conflicts.length);
   };
   document.addEventListener("click", (e) => {
     const b = e.target.closest("button");
@@ -668,8 +671,10 @@
           t.value;
         return A.save("meetings", m);
       }
-      if (m && t.id === "meetingCloudAudioEnabled")
+      if (m && t.id === "meetingCloudAudioEnabled") {
+        A.feedback?.dismiss("audio");
         return A.updateMeeting(m.id, { cloudAudioAllowed: t.checked });
+      }
       if (m && t.id === "solutionGroundingInput")
         return A.updateMeeting(m.id, { solutionGrounding: t.checked });
       if (m && t.id === "projectPicker") {

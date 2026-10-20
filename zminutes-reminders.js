@@ -95,9 +95,9 @@
   $("checkRemindersBtn").onclick = () =>
     A.run(async () => {
       const items = await check();
-      $("reminderStatus").textContent = items.length
+      A.notice(items.length
         ? `${items.length} reminder(s) shown.`
-        : "No new reminders due now.";
+        : "No new reminders due now.", false, { source: "reminders" });
     });
   window.addEventListener("zminutes:ready", () => {
     $("reminderStatus").textContent = enabled()

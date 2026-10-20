@@ -8,8 +8,9 @@
     timer,
     wake;
   const message = (text, error = false) => {
-    $("recordStatus").textContent = text;
-    $("recordStatus").classList.toggle("error", error);
+    if (A.feedback) A.feedback.show("audio", text, { target: "recordStatus", error,
+      busy: !error && A.recording && !/saved|imported/i.test(text) });
+    else { $("recordStatus").textContent = text; $("recordStatus").classList.toggle("error", error); }
   };
   function reset() {
     clearInterval(timer);
@@ -84,6 +85,7 @@
       A.notice(
         "Recording needs recovery. Open Settings → Recover recordings.",
         true,
+        { source: "recording-recovery", critical: true, label: "Interrupted audio", action: openRecovery },
       );
     } finally {
       r.engine.abort();
@@ -240,15 +242,31 @@
   }
   async function renderRecovery() {
     const sessions = await S.all("sessions");
+    const interrupted = sessions.filter((s) => s.id !== recording?.session.id);
+    $("recordingRecoveryCount").textContent = String(interrupted.length);
+    if (!interrupted.length) A.feedback?.resolve("recording-recovery");
+    else if (A.feedback) A.notice("Interrupted audio is available on this device.", true, {
+      source: "recording-recovery", critical: true, label: `Interrupted audio · ${interrupted.length}`, action: openRecovery,
+    });
     $("recoveryList").innerHTML =
-      sessions
-        .filter((s) => s.id !== recording?.session.id)
+      interrupted
         .map(
           (s) =>
             `<div class="file-row"><span>${A.esc(s.title || "Interrupted recording")} · ${new Date(s.created).toLocaleString()}</span><button class="secondary" data-recover="${A.esc(s.id)}">Recover audio</button></div>`,
         )
         .join("") || "<p>No interrupted recordings.</p>";
   }
+  async function openRecovery() {
+    await A.navigate("settings");
+    $("recordingRecoveryDetails").open = true;
+    $("recordingRecoveryDetails").scrollIntoView({ block: "center" });
+  }
+  $("liveCloudHelpBtn").onclick = () => A.run(async () => {
+    A.tab = "summary";
+    A.renderEditor(false);
+    $("meetingCloudAudioEnabled").scrollIntoView({ block: "center" });
+    $("meetingCloudAudioEnabled").focus();
+  });
   $("recoveryList").onclick = (e) => {
     const id = e.target.closest("[data-recover]")?.dataset.recover;
     if (!id) return;

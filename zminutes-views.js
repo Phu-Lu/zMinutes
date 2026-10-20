@@ -286,6 +286,10 @@
             ? "Saved recap"
             : "";
     $("meetingCloudAudioEnabled").checked = m.cloudAudioAllowed;
+    $("liveCloudHelpBtn").hidden = m.cloudAudioAllowed;
+    $("liveCloudHint").textContent = m.cloudAudioAllowed
+      ? "Optional: sends audio every 30 seconds using your transcription model and key. May increase API costs. Off for each new recording."
+      : "Live draft needs cloud transcription permission for this meeting. Use the button above to review and enable it.";
     $("solutionGroundingInput").checked = m.solutionGrounding;
     $("transcriptCombined").textContent =
       ZMinutesModel.fullTranscript(m) || "No transcript yet.";

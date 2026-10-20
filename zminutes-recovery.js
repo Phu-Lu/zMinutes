@@ -7,7 +7,9 @@
   let versions = [],
     preview = null,
     legacyCandidates = [];
-  const report = (message) => ($("recoveryStatus").textContent = message);
+  const report = (message) => A.feedback.show("recovery-status", message, {
+    target: "recoveryStatus", busy: /…$/.test(message),
+  });
   const counts = (raw) => {
     const data = M.validateBackup(raw);
     return `${data.meetings.length} meetings, ${data.tasks.length} tasks, ${data.fieldNotes.length} field notes`;

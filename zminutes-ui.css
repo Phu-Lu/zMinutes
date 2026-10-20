@@ -350,6 +350,18 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
 }
 
 /* One offline SVG icon family for navigation and top-level actions. */
+.feedback-message { position: relative; padding-right: 44px !important; }
+#appNotice { position: fixed; bottom: 20px; right: 20px; z-index: 80; width: min(460px, calc(100vw - 40px)); margin: 0; box-shadow: 0 6px 24px #25154722; }
+.feedback-close { position: absolute; right: 0; top: 0; width: 40px; min-height: 40px; border: 0; background: transparent; color: inherit; }
+.feedback-close::before { content: "×"; font-size: 20px; }
+#notificationIssues { display: flex; flex-wrap: wrap; gap: 8px; }
+.issue-badge { min-height: 36px; padding: 5px 12px; border: 1px solid #e9c98b; border-radius: 20px; background: #fff8e9; color: #79571c; font-size: 12px; }
+.settings-disclosure > summary { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; font-weight: 600; list-style: none; }
+.settings-disclosure > summary::after { content: "⌄"; margin-left: auto; }
+.settings-disclosure[open] > summary::after { content: "⌃"; }
+.settings-disclosure > summary::-webkit-details-marker { display: none; }
+.settings-disclosure pre { max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.live-option-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .live-draft-option { display: flex; gap: 8px; align-items: center; min-height: 44px; margin-top: 8px; }
 .live-draft-panel { padding: 14px; margin: 12px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--card, white); }
 .live-draft-panel[hidden] { display: none; }

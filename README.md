@@ -1,5 +1,7 @@
 # zMinutes
 
+Build 38 consolidates notifications (4-second success, 8-second errors, dismiss and hover/focus pause) while retaining compact warnings for unsaved data/interrupted audio. Settings uses expandable counts for Sync conflicts and Interrupted recordings; installation remains in More. Live draft is next to recording controls, with a link to meeting cloud permission when needed. Deployment must pass the full browser suite before Pages updates.
+
 ### Live draft (build 37)
 
 In a meeting, enable cloud transcription permission in Recap, then check **Live draft for next recording** in Audio before pressing Record. It is off by default and resets after each recording. Your selected **transcription provider/model/key** in Settings is used for both live and file transcription; no special Live-only model is forced. Only audio-capable models compatible with the provider endpoint work (Gemini and OpenAI); text-only/offline recap models are not speech recognition engines.

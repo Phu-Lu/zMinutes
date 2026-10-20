@@ -4,8 +4,7 @@
     S = ZMinutesStore,
     KEY = "zminutes-ai-settings-v1";
   let cfg = A.safeRead(KEY),
-    job = null,
-    completionTimer = null;
+    job = null;
   // Progress belongs to the workspace, not the provider configuration card.
   $("aiJobStatusHost").append($("aiStatus"));
   $("aiJobActions").prepend($("cancelAiBtn"));
@@ -84,7 +83,7 @@
     const next = read();
     localStorage.setItem(KEY, JSON.stringify(next));
     cfg = next;
-    $("aiSaveStatus").textContent = "Saved on this device.";
+    A.feedback.show("ai-settings", "Saved on this device.", { target: "aiSaveStatus" });
   }
   display();
   $("aiProvider").onchange = () => {
@@ -93,14 +92,16 @@
     $("aiModel").value = defaults[cfg.provider];
     $("aiApiKey").value = cfg.keys[cfg.provider] || "";
     fields();
-    $("aiSaveStatus").textContent = "Unsaved settings";
+    A.feedback.show("ai-settings", "Unsaved settings", { target: "aiSaveStatus", busy: true });
   };
   $("transcriptionProvider").onchange = () => {
     $("transcriptionModel").value = "";
     fields();
-    $("aiSaveStatus").textContent = "Unsaved settings";
+    A.feedback.show("ai-settings", "Unsaved settings", { target: "aiSaveStatus", busy: true });
   };
   $("saveAiSettingsBtn").onclick = () => A.run(save);
+  $("settings-ai").addEventListener("input", () =>
+    A.feedback.show("ai-settings", "Unsaved settings", { target: "aiSaveStatus", busy: true }));
   $("clearAiKeysBtn").onclick = () =>
     A.run(() => {
       if (!confirm("Clear API keys on this device?")) return;
@@ -299,7 +300,7 @@
       throw error;
     }
     job = new AbortController();
-    clearTimeout(completionTimer);
+    A.feedback?.dismiss("ai-job");
     A.aiBusy = true;
     $("aiJobPanel").hidden = false;
     $("aiJobPanel").dataset.state = "working";
@@ -311,21 +312,20 @@
     $("cancelAiBtn").hidden = false;
     $("generateSummaryBtn").disabled = true;
     $("generateSolutionsBtn").disabled = true;
-    $("aiStatus").textContent = "Preparing meeting data…";
+    A.feedback.show("ai-job", "Preparing meeting data…", { target: "aiStatus", container: "aiJobPanel", busy: true });
     try {
       await A.flush();
       const m = structuredClone(A.data.meetings.find((m) => m.id === id));
       if (!m) throw new Error("Meeting not found");
       $("aiStatus").textContent = "Working: " + m.title;
       await work(m, structuredClone(read()), job.signal);
-      $("aiStatus").textContent = "Completed: " + m.title;
+      A.feedback.show("ai-job", "Completed: " + m.title, { target: "aiStatus", container: "aiJobPanel" });
       $("aiJobPanel").dataset.state = "complete";
       $("aiTranscriptPreview").hidden = true;
-      completionTimer = setTimeout(() => { $("aiJobPanel").hidden = true; }, 6000);
     } catch (e) {
       $("aiJobPanel").dataset.state = "error";
-      $("aiStatus").textContent =
-        e.name === "AbortError" ? "Canceled" : "Failed: " + e.message;
+      A.feedback.show("ai-job", e.name === "AbortError" ? "Canceled" : "Failed: " + e.message,
+        { target: "aiStatus", container: "aiJobPanel", error: e.name !== "AbortError" });
       throw e;
     } finally {
       job = null;
@@ -342,7 +342,7 @@
     if (A.meetingId !== id) return;
     A.recapStatusMeetingId = id;
     const box = $("recapStatus");
-    box.textContent = message;
+    A.feedback.show("recap", message, { target: "recapStatus", busy: state === "working", error: state === "error" });
     box.dataset.state = state;
     box.hidden = false;
   }
@@ -587,9 +587,7 @@
     });
   }
   function transcriptAction(message, error = false) {
-    const status = $("transcriptActionStatus");
-    status.textContent = message;
-    status.classList.toggle("error", error);
+    A.feedback.show("transcript", message, { target: "transcriptActionStatus", error, busy: /^Translating (transcript|part)/.test(message) });
   }
   function transcriptText() {
     const m = A.current();

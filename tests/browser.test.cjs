@@ -44,7 +44,7 @@ const server = http.createServer((req, res) => {
   let browser;
   try {
     browser = await chromium.launch({
-      ...(process.platform === "win32" ? { channel: "msedge" } : {}),
+      ...(process.platform === "win32" && process.env.ZMINUTES_BROWSER !== "chromium" ? { channel: "msedge" } : {}),
       headless: true,
       args: [
         "--use-fake-ui-for-media-stream",
@@ -1592,8 +1592,128 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => window.ZM?.ready);
     assert.ok(await page.evaluate(() => ZM.data.meetings.filter((m) => m.title.startsWith("Live test ")).every((m) => m.recordings.length === 1 && m.transcriptSegments.length === 1)));
     console.log("PASS: opt-in Live draft captures audio, respects custom Gemini/OpenAI models, saves transcript and avoids duplicate transcription");
+    const feedbackPage = await context.newPage();
+    await feedbackPage.goto(base);
+    await feedbackPage.waitForFunction(() => window.ZM?.ready);
+    await feedbackPage.clock.install();
+    await feedbackPage.mouse.move(0, 0);
+    await feedbackPage.evaluate(() => ZM.notice("Success"));
+    await feedbackPage.clock.runFor(3999);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
+    await feedbackPage.clock.runFor(2);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), false);
+    await feedbackPage.evaluate(() => ZM.notice("Error", true));
+    await feedbackPage.clock.runFor(7999);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
+    await feedbackPage.clock.runFor(2);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), false);
+    await feedbackPage.evaluate(() => ZM.notice("First"));
+    await feedbackPage.clock.runFor(3000);
+    await feedbackPage.evaluate(() => ZM.notice("Replacement"));
+    await feedbackPage.clock.runFor(1001);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
+    await feedbackPage.locator("#appNotice").hover();
+    await feedbackPage.clock.runFor(9000);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
+    await feedbackPage.mouse.move(0, 0);
+    await feedbackPage.locator("#appNotice button").focus();
+    await feedbackPage.clock.runFor(9000);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
+    await feedbackPage.locator("#appNotice button").click();
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), false);
+    await feedbackPage.evaluate(() => {
+      ZM.feedback.show("test-critical", "Not saved", { critical: true, error: true, label: "Unsaved test data" });
+      document.activeElement.blur();
+    });
+    await feedbackPage.mouse.move(0, 0);
+    await feedbackPage.clock.runFor(8001);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), false);
+    assert.equal(await feedbackPage.locator(".issue-badge").filter({ hasText: "Unsaved test data" }).isVisible(), true);
+    await feedbackPage.evaluate(() => ZM.feedback.resolve("test-critical"));
+    assert.equal(await feedbackPage.locator(".issue-badge").filter({ hasText: "Unsaved test data" }).count(), 0);
+    await feedbackPage.evaluate(() => ZM.feedback.show("long-job", "Working", { busy: true }));
+    await feedbackPage.clock.runFor(60000);
+    assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
+    await feedbackPage.evaluate(() => ZM.feedback.resolve("long-job"));
+    await feedbackPage.evaluate(async () => {
+      await ZM.navigate("settings");
+      window.realReduce = ZMinutesModel.reduce;
+      window.mockConflicts = [];
+      ZMinutesModel.reduce = () => ({ conflicts: window.mockConflicts });
+      await ZM.renderConflicts();
+    });
+    assert.equal(await feedbackPage.locator("#installHelp").count(), 0);
+    assert.equal(await feedbackPage.locator("#conflictCount").textContent(), "0");
+    assert.equal(await feedbackPage.locator("#syncConflictsDetails").evaluate((el) => el.open), false);
+    await feedbackPage.locator("#syncConflictsDetails > summary").click();
+    for (const count of [1, 4]) {
+      await feedbackPage.evaluate(async (count) => {
+        window.mockConflicts = Array.from({ length: count }, (_, i) => ({
+          id: "test-" + i, kind: "meetings", versions: [{ value: { title: "Test conflict " + i } }, { value: null }],
+        }));
+        await ZM.renderConflicts();
+      }, count);
+      assert.equal(await feedbackPage.locator("#conflictCount").textContent(), String(count));
+      assert.equal(await feedbackPage.locator("#syncConflictsDetails").evaluate((el) => el.open), true);
+    }
+    await feedbackPage.locator("#syncConflictsDetails > summary").click();
+    await feedbackPage.evaluate(async () => {
+      ZMinutesModel.reduce = window.realReduce;
+      await ZM.renderConflicts();
+      for (let i = 0; i < 2; i++) await ZMinutesStore.checkpoint({ id: "recovery-ui-" + i, title: "Interrupted test", created: Date.now(), meetingId: "missing", rate: 16000 }, 0, null);
+      await ZM.audio.renderRecovery();
+    });
+    assert.equal(await feedbackPage.locator("#recordingRecoveryCount").textContent(), "2");
+    assert.equal(await feedbackPage.locator("#recordingRecoveryDetails").evaluate((el) => el.open), false);
+    await feedbackPage.locator("#recordingRecoveryDetails > summary").click();
+    assert.equal(await feedbackPage.locator("#recoveryList [data-recover]").count(), 2);
+    await feedbackPage.locator("#recordingRecoveryDetails > summary").click();
+    for (const width of [1366, 800, 412, 360]) {
+      await feedbackPage.setViewportSize({ width, height: 1000 });
+      await feedbackPage.evaluate(() => { ZM.nav(false); window.scrollTo(0, 0); });
+      await feedbackPage.clock.runFor(400);
+      await feedbackPage.screenshot({ path: path.join(root, "test-results", `settings-build38-${width}.png`), fullPage: true });
+    }
+    await feedbackPage.evaluate(async () => {
+      const id = crypto.randomUUID();
+      await ZM.save("meetings", { id, title: "Cloud permission test", projectId: "inbox" });
+      await ZM.open(id);
+    });
+    for (const width of [1366, 800, 412, 360]) {
+      await feedbackPage.setViewportSize({ width, height: 1000 });
+      await feedbackPage.locator("#liveDraftEnabled").scrollIntoViewIfNeeded();
+      assert.equal(await feedbackPage.locator("#liveDraftEnabled").isVisible(), true);
+      const bounds = await feedbackPage.locator(".live-option-row").boundingBox();
+      assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1);
+      await feedbackPage.locator(".notes-audio").screenshot({
+        path: path.join(root, "test-results", `live-option-build38-${width}.png`),
+      });
+    }
+    await feedbackPage.locator("#liveDraftEnabled").check();
+    await feedbackPage.locator("#recordBtn").click();
+    assert.match(await feedbackPage.locator("#recordStatus").textContent(), /Enable cloud transcription/);
+    await feedbackPage.locator("#liveCloudHelpBtn").click();
+    await feedbackPage.locator("#meetingCloudAudioEnabled").check();
+    await feedbackPage.waitForFunction(() => ZM.current().cloudAudioAllowed);
+    assert.equal(await feedbackPage.locator("#recordStatus").isVisible(), false);
+    console.log("PASS: notification durations, replacement, hover/focus, critical badges, Settings disclosures and cloud permission correction");
+    await feedbackPage.close();
     await contextB.close();
     await context.close();
+  } catch (error) {
+    const pages = browser?.contexts().flatMap((context) => context.pages()) || [];
+    for (const [index, failedPage] of pages.entries()) {
+      await failedPage.screenshot({ path: path.join(root, "test-results", `failure-${index}.png`), fullPage: true }).catch(() => {});
+      const state = await failedPage.evaluate(() => ({
+        aiBusy: window.ZM?.aiBusy,
+        translationLanguage: document.getElementById("translationLanguage")?.value,
+        customLanguage: document.getElementById("customTranslationLanguage")?.value,
+        translation: window.ZM?.translation?.language,
+        notices: ["appNotice", "aiStatus", "transcriptActionStatus"].map((id) => document.getElementById(id)?.textContent),
+      })).catch(() => ({}));
+      fs.writeFileSync(path.join(root, "test-results", `failure-${index}.json`), JSON.stringify({ error: String(error), state }, null, 2));
+    }
+    throw error;
   } finally {
     await browser?.close();
     await new Promise((r) => server.close(r));

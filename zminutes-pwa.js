@@ -3,9 +3,7 @@
     $ = A.$;
   let promptEvent, registration;
   const feedback = (text) => {
-    $("installNotice").textContent = text;
-    $("installNotice").classList.remove("hidden");
-    $("installStatus").textContent = text;
+    A.notice(text, false, { source: "install" });
   };
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
@@ -34,8 +32,6 @@
             : "Installation dismissed. You can try again from the browser menu.",
         );
       } else {
-        await A.navigate("settings");
-        $("installHelp").scrollIntoView();
         feedback(
           "Open your browser menu → Install app or Add to Home screen. If it offers Open in app, installation already exists.",
         );
@@ -46,17 +42,15 @@
   $("importSettingsBtn").onclick = () => $("importMeetingBtn").click();
   $("updateAppBtn").onclick = () =>
     A.run(async () => {
-      if (A.recording || A.aiBusy)
+      if (A.recording || A.aiBusy || A.live?.busy)
         throw new Error("Finish recording or AI requests before updating.");
       await A.flush();
       await registration?.update();
       if (registration?.waiting) {
         registration.waiting.postMessage({ type: "ACTIVATE" });
-        $("updateStatus").textContent =
-          "Update ready. Reload zMinutes to use it.";
+        A.feedback.show("update", "Update ready. Reload zMinutes to use it.", { target: "updateStatus" });
       } else
-        $("updateStatus").textContent =
-          "Update check completed. Reload to use the latest available version.";
+        A.feedback.show("update", "Update check completed. Reload to use the latest available version.", { target: "updateStatus" });
     });
   if ("serviceWorker" in navigator)
     navigator.serviceWorker
