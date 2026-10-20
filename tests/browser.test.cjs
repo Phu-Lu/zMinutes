@@ -831,9 +831,11 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator("#detectedLanguage").textContent(), "Not identified");
     await page.locator("#translationLanguage").selectOption("custom");
     await page.locator("#customTranslationLanguage").fill("Zulu");
+    assert.equal(await page.locator("#customTranslationLanguage").inputValue(), "Zulu");
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => ZM.translation?.language === "Zulu");
     assert.match(flexibleTranslationPrompt, /into Zulu/);
+    assert.equal(await note.innerText().then((text) => text.includes("Zulu")), false, "Add to Notes must not steal typing focus from the target language");
     await page.locator("#translationLanguage").selectOption("Swahili");
     await page.locator("#translateTranscriptBtn").click();
     await page.waitForFunction(() => ZM.translation?.language === "Swahili");
@@ -1602,6 +1604,7 @@ const server = http.createServer((req, res) => {
     assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
     await feedbackPage.clock.runFor(2);
     assert.equal(await feedbackPage.locator("#appNotice").isVisible(), false);
+    console.log("PASS: success notification expires after four seconds");
     await feedbackPage.evaluate(() => ZM.notice("Error", true));
     await feedbackPage.clock.runFor(7999);
     assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
@@ -1632,9 +1635,10 @@ const server = http.createServer((req, res) => {
     await feedbackPage.evaluate(() => ZM.feedback.resolve("test-critical"));
     assert.equal(await feedbackPage.locator(".issue-badge").filter({ hasText: "Unsaved test data" }).count(), 0);
     await feedbackPage.evaluate(() => ZM.feedback.show("long-job", "Working", { busy: true }));
-    await feedbackPage.clock.runFor(60000);
+    await feedbackPage.clock.fastForward(60000);
     assert.equal(await feedbackPage.locator("#appNotice").isVisible(), true);
     await feedbackPage.evaluate(() => ZM.feedback.resolve("long-job"));
+    console.log("PASS: error timers, replacement, hover/focus, dismissal and critical notification lifecycle");
     await feedbackPage.evaluate(async () => {
       await ZM.navigate("settings");
       window.realReduce = ZMinutesModel.reduce;

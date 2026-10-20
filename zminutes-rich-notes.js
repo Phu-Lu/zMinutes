@@ -76,7 +76,10 @@
     const paragraphs = [label, ...value.split(/\r?\n/)].map((text) => ({
       type: "paragraph", ...(text ? { content: [{ type: "text", text }] } : {}),
     }));
-    editor.chain().focus().insertContentAt(editor.state.doc.content.size, {
+    // This action originates outside Notes. Tiptap's deferred focus can steal
+    // the next keystrokes from the translation language input (and open the
+    // mobile keyboard). Insert without changing the user's focused control.
+    editor.chain().insertContentAt(editor.state.doc.content.size, {
       type: "sourceBlock", attrs: { source, language }, content: paragraphs,
     }).run();
     return true;
