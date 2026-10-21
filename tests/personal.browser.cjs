@@ -45,6 +45,19 @@ const server = http.createServer((req, res) => {
   try {
     await page.goto("http://127.0.0.1:" + server.address().port);
     await page.waitForFunction(() => ZM.ready);
+    const navIcons = await page.evaluate(() => {
+      const notes = document.querySelector("#personalNotesNav .ui-icon");
+      const meetings = document.querySelector('[data-go="meetings"] .ui-icon');
+      return {
+        kind: document.querySelector("#personalNotesNav [data-ui-icon]")?.dataset.uiIcon,
+        notes: [notes?.getBoundingClientRect().width, notes?.getBoundingClientRect().height],
+        meetings: [meetings?.getBoundingClientRect().width, meetings?.getBoundingClientRect().height],
+        notebookDetails: notes?.querySelectorAll("rect, path").length,
+      };
+    });
+    assert.equal(navIcons.kind, "notebook");
+    assert.deepEqual(navIcons.notes, navIcons.meetings);
+    assert.ok(navIcons.notebookDetails >= 2);
     await page.locator("#personalNotesNav").click();
     await page.locator("#pnNew").click();
     await page.locator("#pnTitle").fill("Personal ideas");
