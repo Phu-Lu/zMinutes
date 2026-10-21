@@ -1,5 +1,9 @@
 # zMinutes
 
+## Home — build 41
+
+Home is the app-wide starting page. It summarizes project and meeting counts, open and overdue tasks, personal Notes, upcoming meetings, recent Notes, and project activity across all local projects. Select a task, meeting, note, or project to open it directly. Home reads existing local data and creates no new records; after Drive sync, it reflects the merged local workspace.
+
 ## Personal Notes — build 39
 
 Open **Notes** above Projects for a separate personal notebook. Notes support rich text, checklists, pictures, search, labels, pin/archive/trash, and PDF/DOCX export. Record audio, explicitly allow cloud transcription, then Transcribe using the provider/model in Settings. Review the text before Insert (marked cursor) or Append; audio remains local and deleting it preserves inserted text.

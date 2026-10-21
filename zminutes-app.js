@@ -7,7 +7,7 @@
     data: Object.fromEntries(M.kinds.map((k) => [k, []])),
     heads: {},
     project: "inbox",
-    section: "overview",
+    section: "home",
     meetingId: null,
     tab: "note",
     ready: false,
@@ -345,6 +345,16 @@
     if (!b) return;
     A.run(async () => {
       if (b.dataset.go) return A.navigate(b.dataset.go);
+      if (b.dataset.homeNote) {
+        await A.navigate("personal");
+        return A.personal.open(b.dataset.homeNote);
+      }
+      if (b.dataset.homeTaskProject)
+        return A.navigate("tasks", b.dataset.homeTaskProject);
+      if (b.dataset.homeFocus) {
+        document.getElementById(b.dataset.homeFocus)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
       if (b.dataset.project) return A.navigate("overview", b.dataset.project);
       if (b.dataset.open)
         return A.open(b.dataset.open, b.dataset.tab || "note");
@@ -760,6 +770,7 @@
     $("aiSettingsBtn").onclick =
     $("manageAiBtn").onclick =
       () => A.run(() => A.navigate("settings"));
+  $("appHomeNav").onclick = () => A.run(() => A.navigate("home"));
   $("backBtn").onclick = () => A.run(() => A.navigate(A.section));
   $("menuBtn").onclick = () => A.nav(!$("sidebar").classList.contains("open"));
   $("sbClose").onclick = $("scrim").onclick = () => A.nav(false);

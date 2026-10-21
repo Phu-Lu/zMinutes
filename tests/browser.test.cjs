@@ -1004,9 +1004,21 @@ const server = http.createServer((req, res) => {
       await page.locator("#homeView .section-head h2").textContent(),
       "My meetings",
     );
+    await page.evaluate(() => ZM.navigate("home"));
+    await page.waitForFunction(() => document.querySelectorAll("#appHomeView .home-stat").length === 4);
+    assert.deepEqual(
+      await page.locator("#appHomeView .home-stat strong").allTextContents(),
+      await page.evaluate(async () => [
+        ZM.data.projects.length,
+        ZM.data.meetings.length,
+        ZM.data.tasks.filter((task) => task.status !== "done").length,
+        (await ZMinutesPersonalStore.all()).filter((row) => row.value && !row.value.trashed).length,
+      ].map(String)),
+    );
     for (const width of [360, 412, 800, 1024, 1366]) {
       await page.setViewportSize({ width, height: 900 });
       for (const section of [
+        "home",
         "overview",
         "tasks",
         "calendar",
@@ -1014,6 +1026,7 @@ const server = http.createServer((req, res) => {
         "settings",
       ]) {
         await page.evaluate((section) => ZM.navigate(section), section);
+        if (section === "home") await page.waitForFunction(() => document.querySelectorAll("#appHomeView .home-stat").length === 4);
         const overflow = await page.evaluate(
           () => document.documentElement.scrollWidth > innerWidth + 2,
         );

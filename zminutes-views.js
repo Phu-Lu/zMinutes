@@ -5,6 +5,7 @@
   $("summaryOutput").before($("recapKind"));
   // Shared stroke icons, independent of device fonts and available offline.
   const icons = {
+    home: '<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
     overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     meetings: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/>',
     notebook: '<rect x="5" y="3" width="16" height="18" rx="2"/><path d="M9 3v18M3 7h4M3 12h4M3 17h4M12 8h6M12 12h6"/>',
@@ -79,20 +80,30 @@
         ),
     ].sort((a, b) => b.updated - a.updated);
   A.render = () => {
+    const inProject = !["home", "personal", "settings"].includes(A.section);
     $("projectList").innerHTML = A.data.projects
       .map(
         (p) =>
-          `<div class="proj${p.id === A.project ? " current open" : ""}"><button class="proj-head" data-project="${e(p.id)}" title="${e(p.name)}" aria-label="${e(p.name)}"><span class="proj-chip">${icon("folder")}</span><span class="proj-name">${e(p.name)}</span></button>${p.id === A.project ? '<nav class="proj-nav" aria-label="Project navigation">' + sections.map(([id, title]) => `<button class="nav-item${A.section === id ? " active" : ""}" data-go="${id}" title="${title}" aria-label="${title}" ${A.section === id ? 'aria-current="page"' : ''}>${icon(id)}<span class="nav-label">${title}</span></button>`).join("") + "</nav>" : ""}</div>`,
+          `<div class="proj${inProject && p.id === A.project ? " current open" : ""}"><button class="proj-head" data-project="${e(p.id)}" title="${e(p.name)}" aria-label="${e(p.name)}"><span class="proj-chip">${icon("folder")}</span><span class="proj-name">${e(p.name)}</span></button>${inProject && p.id === A.project ? '<nav class="proj-nav" aria-label="Project navigation">' + sections.map(([id, title]) => `<button class="nav-item${A.section === id ? " active" : ""}" data-go="${id}" title="${title}" aria-label="${title}" ${A.section === id ? 'aria-current="page"' : ''}>${icon(id)}<span class="nav-label">${title}</span></button>`).join("") + "</nav>" : ""}</div>`,
       )
       .join("");
+    $("appHomeNav").classList.toggle("active", A.section === "home");
+    $("personalNotesNav").classList.toggle("active", A.section === "personal");
+    $("settingsNavBtn").classList.toggle("active", A.section === "settings");
+    for (const [id, section] of [["appHomeNav", "home"], ["personalNotesNav", "personal"], ["settingsNavBtn", "settings"]]) {
+      if (A.section === section) $(id).setAttribute("aria-current", "page");
+      else $(id).removeAttribute("aria-current");
+    }
     $("crumbs").textContent =
-      project().name +
+      (A.section === "home" && !A.meetingId ? "Home" : project().name +
       " › " +
       (A.current()?.title ||
         sections.find((s) => s[0] === A.section)?.[1] ||
-        "Settings");
+        "Settings"));
     const view = A.meetingId
       ? "editorView"
+      : A.section === "home"
+        ? "appHomeView"
       : A.section === "overview"
         ? "overviewView"
         : A.section === "meetings"
@@ -103,6 +114,7 @@
             ? "settingsView"
             : "placeholderView";
     for (const id of [
+      "appHomeView",
       "editorView",
       "overviewView",
       "homeView",
@@ -114,12 +126,39 @@
     $("backBtn").classList.toggle("hidden", !A.meetingId);
     $("newMeetingBtn").classList.toggle("hidden", !!A.meetingId);
     if (A.meetingId) A.renderEditor();
+    else if (A.section === "home") A.renderHome().catch((error) => {
+      $("appHomeView").innerHTML = `<div class="ov-card" role="alert">Home could not load. ${e(error.message)}</div>`;
+    });
     else if (A.section === "overview") A.renderOverview();
     else if (A.section === "meetings") A.renderMeetings();
     else if (A.section === "personal") A.run(() => A.personal?.render());
     else if (A.section !== "settings") A.renderSection();
     if (A.section === "personal" && !A.meetingId) { $("crumbs").textContent = "Personal Notes"; $("newMeetingBtn").classList.add("hidden"); }
     A.loadImages();
+  };
+  let homeRenderId = 0;
+  A.renderHome = async () => {
+    const id = ++homeRenderId;
+    const box = $("appHomeView");
+    box.innerHTML = '<div class="home-head"><div><p class="eyebrow">YOUR WORKSPACE</p><h1>Home</h1><p>Everything that needs your attention, in one place.</p></div></div><p class="empty-note">Loading overview…</p>';
+    const noteRows = await ZMinutesPersonalStore.all();
+    if (id !== homeRenderId || A.section !== "home" || A.meetingId) return;
+    const notes = noteRows.filter((r) => r.value && !r.value.trashed).map((r) => r.value);
+    const activeNotes = notes.filter((n) => !n.archived);
+    const openTasks = A.data.tasks.filter((t) => t.status !== "done")
+      .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+    const upcoming = A.data.meetings.filter((m) => m.date && m.date.slice(0, 10) >= A.today())
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const recentNotes = activeNotes.slice().sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.updated - a.updated).slice(0, 5);
+    const projectName = (id) => A.data.projects.find((p) => p.id === id)?.name || "Personal Workspace";
+    const tile = (kind, label, count, detail, target, section = false) =>
+      `<button class="home-stat" ${section ? `data-go="${target}"` : `data-home-focus="${target}"`}><span class="home-stat-icon">${icon(kind)}</span><span class="home-stat-copy"><strong>${count}</strong><span>${label}</span><small>${detail}</small></span></button>`;
+    box.innerHTML = `<div class="home-head"><div><p class="eyebrow">YOUR WORKSPACE</p><h1>Home</h1><p>Everything that needs your attention, in one place.</p></div><button class="primary" data-new>+ New meeting</button></div>
+      <div class="home-stats">${tile("folder", "Projects", A.data.projects.length, "Workspaces", "homeProjects")}${tile("meetings", "Meetings", A.data.meetings.length, upcoming.length + " upcoming", "homeMeetings")}${tile("tasks", "Open tasks", openTasks.length, openTasks.filter((t) => t.due && t.due < A.today()).length + " overdue", "homeTasks")}${tile("notebook", "Notes", notes.length, activeNotes.length + " active", "personal", true)}</div>
+      <div class="home-grid"><section id="homeTasks" class="ov-card home-section"><div class="ov-card-head"><h2>Tasks to follow up</h2></div><div class="home-list">${openTasks.slice(0, 5).map((t) => `<button class="home-row" data-home-task-project="${e(t.projectId)}"><span class="signal ${light(t)}" aria-hidden="true"></span><span><strong>${e(t.title)}</strong><small>${e(projectName(t.projectId))} · ${e(t.due ? date(t.due) : "No due date")} · ${e(label(t))}</small></span><span aria-hidden="true">›</span></button>`).join("") || empty("No open tasks.")}</div></section>
+      <section id="homeMeetings" class="ov-card home-section"><div class="ov-card-head"><h2>Upcoming meetings</h2></div><div class="home-list">${upcoming.slice(0, 5).map((m) => `<button class="home-row" data-open="${e(m.id)}"><span class="home-row-icon">${icon("calendar")}</span><span><strong>${e(m.title || "Untitled meeting")}</strong><small>${e(projectName(m.projectId))} · ${e(date(m.date))}</small></span><span aria-hidden="true">›</span></button>`).join("") || empty("No upcoming meetings.")}</div></section>
+      <section class="ov-card home-section"><div class="ov-card-head"><h2>Recent notes</h2><button class="link-btn" data-go="personal">View all →</button></div><div class="home-list">${recentNotes.map((n) => `<button class="home-row" data-home-note="${e(n.id)}"><span class="home-row-icon">${icon("notebook")}</span><span><strong>${n.pinned ? "★ " : ""}${e(n.title || "Untitled note")}</strong><small>${e(n.note?.slice(0, 90) || "Empty note")}</small></span><span aria-hidden="true">›</span></button>`).join("") || empty("No personal notes yet.")}</div></section>
+      <section id="homeProjects" class="ov-card home-section"><div class="ov-card-head"><h2>Projects</h2></div><div class="home-list">${A.data.projects.map((p) => `<button class="home-row" data-project="${e(p.id)}"><span class="home-row-icon">${icon("folder")}</span><span><strong>${e(p.name)}</strong><small>${A.data.meetings.filter((m) => m.projectId === p.id).length} meetings · ${openTasks.filter((t) => t.projectId === p.id).length} open tasks</small></span><span aria-hidden="true">›</span></button>`).join("") || empty("No projects yet.")}</div></section></div>`;
   };
   A.renderOverview = () => {
     const ms = meetings().sort((a, b) => b.updated - a.updated),

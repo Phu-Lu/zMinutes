@@ -794,6 +794,7 @@
   A.personal = {
     flush,
     render,
+    open,
     sync,
     isDirty: () => dirty,
     busy: () => !!capture || !!job || (A.recording && A.section === "personal"),

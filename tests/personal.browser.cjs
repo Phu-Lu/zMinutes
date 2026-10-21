@@ -45,6 +45,8 @@ const server = http.createServer((req, res) => {
   try {
     await page.goto("http://127.0.0.1:" + server.address().port);
     await page.waitForFunction(() => ZM.ready);
+    assert.equal(await page.locator("#appHomeView").isVisible(), true);
+    await page.evaluate(() => ZM.navigate("overview"));
     const navIcons = await page.evaluate(() => {
       const notes = document.querySelector("#personalNotesNav .ui-icon");
       const meetings = document.querySelector('[data-go="meetings"] .ui-icon');
@@ -96,6 +98,19 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(
       () => document.getElementById("pnPin").textContent === "Unpin",
     );
+    await page.locator("#appHomeNav").click();
+    await page.waitForFunction(() => document.querySelectorAll("#appHomeView .home-stat").length === 4);
+    assert.equal(await page.locator("#appHomeView .home-stat").last().locator("strong").textContent(), "1");
+    for (const width of [1366, 412]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => ZM.nav(false));
+      await page.waitForTimeout(350);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
+      await page.screenshot({ path: path.join(root, "test-results", `home-${width}.png`), fullPage: true });
+    }
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.locator(`#appHomeView [data-home-note="${id}"]`).click();
+    assert.equal(await page.locator("#pnTitle").inputValue(), "Personal ideas");
     for (const width of [1366, 800, 412, 360]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(() => ZM.nav(false));

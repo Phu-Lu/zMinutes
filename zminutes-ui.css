@@ -380,12 +380,39 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
 #aiTranscriptPreviewText { max-height: 180px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; }
 @media (max-width: 599px) { .ai-job-panel { top: 68px; padding: 10px; } .ai-job-row { align-items: flex-start; gap: 6px; } #aiJobActions button { padding-inline: 8px; font-size: 12px; } }
 .ui-icon { display: block; width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+[data-ui-icon="home"] .ui-icon { width: 20px; height: 20px; }
 [data-ui-icon] { display: inline-flex; flex: none; align-items: center; justify-content: center; }
 .sb .new-project { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .sb:not(.open) .new-project::before { content: none; }
 .top-actions > #syncBtn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 44px; min-height: 44px; }
 .top-actions > #newMeetingBtn { min-width: 44px; min-height: 44px; }
 .top-actions > #newMeetingBtn [data-ui-icon] { display: inline-flex; }
+.home-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin: 30px 0 20px; }
+.home-head h1 { margin: 0; font-size: clamp(28px, 4vw, 38px); letter-spacing: -.9px; }
+.home-head p:last-child { margin: 6px 0 0; color: var(--muted); }
+.home-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.home-stat { min-width: 0; min-height: 116px; display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--card); color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.home-stat:hover, .home-row:hover { border-color: var(--field-border); background: var(--surface-tint); }
+.home-stat-icon, .home-row-icon { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; background: var(--brand-soft); color: var(--brand-ink); }
+.home-stat-copy { min-width: 0; display: grid; gap: 1px; }
+.home-stat-copy strong { font-size: 29px; line-height: 1.1; }
+.home-stat-copy span { font-size: 13px; font-weight: 700; }
+.home-stat-copy small { font-size: 11px; color: var(--muted); }
+.home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.home-section { min-width: 0; padding: 18px 20px; }
+.home-section .ov-card-head { margin-bottom: 8px; }
+.home-list { display: grid; }
+.home-row { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 58px; padding: 9px 7px; border: 1px solid transparent; border-bottom-color: var(--line); border-radius: 8px; background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
+.home-row:last-child { border-bottom-color: transparent; }
+.home-row > span:nth-child(2) { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.home-row strong, .home-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-row strong { font-size: 13px; }
+.home-row small { font-size: 11px; color: var(--muted); }
+.home-row > span:last-child { color: var(--brand-ink); font-size: 19px; }
+.home-row .signal { flex: none; }
+@media (max-width: 1050px) { .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .home-head { align-items: start; margin-top: 20px; } .home-head .primary { flex: none; } .home-grid { grid-template-columns: 1fr; } }
+@media (max-width: 420px) { .home-head { flex-wrap: wrap; } .home-head .primary { width: 100%; } .home-stat { min-height: 100px; padding: 12px; gap: 9px; } .home-stat-icon { width: 34px; height: 34px; } .home-stat-icon .ui-icon { width: 18px; height: 18px; } .home-stat-copy strong { font-size: 24px; } .home-section { padding: 15px; } }
 .top-actions .top-more-menu { width: 240px; max-width: calc(100vw - 28px); gap: 2px; }
 .top-actions .top-more-menu button,
 .top-actions .top-more-menu #aiSettingsBtn,
