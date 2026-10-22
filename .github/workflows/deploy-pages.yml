@@ -20,6 +20,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
     steps:
       - name: Check out source
         uses: actions/checkout@v6
@@ -31,7 +33,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build:editor
-      - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
 
       - name: Preserve browser failure evidence
