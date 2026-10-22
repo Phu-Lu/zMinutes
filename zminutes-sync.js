@@ -5,13 +5,56 @@
     $ = A.$,
     CLIENT = "zminutes-drive-client-id";
   let token = "",
+    tokenExpiresAt = 0,
     authorizedClient = "",
     folder = "",
     syncing = false,
-    gis;
-  const status = (s) => {
+    gis,
+    gisLoading = false,
+    syncPhase = "idle",
+    topStatusTimer;
+  const renderSyncControls = () => {
+    const reconnect = syncPhase === "auth";
+    const busy = syncing || gisLoading;
+    for (const button of [$("syncBtn"), $("syncSettingsBtn")]) {
+      button.disabled = busy;
+      button.setAttribute("aria-busy", String(busy));
+    }
+    $("syncBtn").title = reconnect ? "Reconnect Google Drive and sync" : "Sync through Google Drive";
+    $("syncBtn").setAttribute("aria-label", $("syncBtn").title);
+    $("syncBtn").querySelector(".action-label").textContent = reconnect ? "Reconnect & sync" : "Sync";
+    $("syncSettingsBtn").textContent = reconnect ? "Reconnect & sync" : "↻ Sync now";
+  };
+  const status = (s, phase = "idle") => {
+    syncPhase = phase;
     $("syncState").textContent = s;
     $("driveStatus").textContent = s;
+    const top = $("syncTopStatus"),
+      short = {
+        loading: "Loading Google sign-in…",
+        connecting: "Connecting…",
+        downloading: "Checking Drive…",
+        uploading: "Uploading…",
+        verifying: "Verifying…",
+        success: "Synced",
+        auth: "Reconnect Drive",
+        error: "Sync needs attention",
+        review: "Review sync conflicts",
+        offline: "Offline · saved locally",
+        paused: "Sync paused",
+        pending: "Changes to sync",
+        setup: "Set up Drive",
+      }[phase] || "";
+    top.textContent = short;
+    top.hidden = !short;
+    top.dataset.state = phase;
+    top.title = s;
+    clearTimeout(topStatusTimer);
+    if (phase === "success" || phase === "error" || phase === "review")
+      topStatusTimer = setTimeout(() => {
+        if (syncPhase === phase) top.hidden = true;
+      }, phase === "success" ? 4000 : 8000);
+    renderSyncControls();
   };
   try {
     $("driveClientId").value = localStorage.getItem(CLIENT) || "";
@@ -19,17 +62,16 @@
   async function loadGIS() {
     if (window.google?.accounts?.oauth2) return;
     if (gis) return gis;
+    gisLoading = true;
+    status("Loading Google sign-in…", "loading");
     gis = new Promise((resolve, reject) => {
       const s = document.createElement("script");
       s.src = "https://accounts.google.com/gsi/client";
       s.async = true;
-      const timer = setTimeout(
-        () =>
-          reject(
-            new Error("Google sign-in did not load. Check your connection."),
-          ),
-        15000,
-      );
+      const timer = setTimeout(() => {
+        s.remove();
+        reject(new Error("Google sign-in did not load. Check your connection."));
+      }, 15000);
       s.onload = () => {
         clearTimeout(timer);
         window.google?.accounts?.oauth2
@@ -45,51 +87,73 @@
     }).catch((e) => {
       gis = null;
       throw e;
+    }).finally(() => {
+      gisLoading = false;
+      renderSyncControls();
     });
     return gis;
   }
   async function authorize() {
+    const client = $("driveClientId").value.trim();
+    if (!client.endsWith(".apps.googleusercontent.com")) {
+      const error = new Error("Save your Google OAuth Client ID in Settings first.");
+      error.code = "DRIVE_SETUP";
+      throw error;
+    }
     if (!window.google?.accounts?.oauth2) {
       await loadGIS();
-      throw new Error(
-        "Google sign-in is ready. Tap Sync now again to open it.",
-      );
     }
-    const client = $("driveClientId").value.trim();
-    if (!client.endsWith(".apps.googleusercontent.com"))
-      throw new Error("Save your Google OAuth Client ID in Settings first.");
     await new Promise((resolve, reject) => {
-      let expired = false;
+      let finished = false;
+      const fail = (message, code) => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        const error = new Error(message);
+        error.code = code;
+        reject(error);
+      };
       const timer = setTimeout(() => {
-          expired = true;
-          reject(new Error("Sign-in timed out"));
-        }, 60000),
-        finish = (e) => {
-          clearTimeout(timer);
-          reject(new Error(e.message || e.type || "Sign-in canceled"));
-        };
-      const c = google.accounts.oauth2.initTokenClient({
-        client_id: client,
-        scope: "https://www.googleapis.com/auth/drive.file",
-        error_callback: finish,
-        callback: (r) => {
-          clearTimeout(timer);
-          if (expired) return;
-          if (r.error) reject(new Error(r.error_description || r.error));
-          else {
-            token = r.access_token;
+          fail("Google sign-in timed out. Tap Reconnect & sync to retry.", "DRIVE_AUTH");
+        }, 60000);
+      try {
+        const c = google.accounts.oauth2.initTokenClient({
+          client_id: client,
+          scope: "https://www.googleapis.com/auth/drive.file",
+          error_callback: (error) => fail(
+            error.type === "popup_failed_to_open"
+              ? "Google sign-in popup was blocked. Allow popups, then tap Reconnect & sync."
+              : "Google sign-in was closed or canceled. Tap Reconnect & sync to retry.",
+            "DRIVE_AUTH",
+          ),
+          callback: (response) => {
+            if (response.error || !response.access_token)
+              return fail(
+                response.error === "access_denied"
+                  ? "Google access was denied. Check the company account or ask IT to allow this app."
+                  : response.error_description || response.error || "Google sign-in failed.",
+                response.error === "access_denied" ? "DRIVE_FORBIDDEN" : "DRIVE_AUTH",
+              );
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            token = response.access_token;
+            tokenExpiresAt = Date.now() + (Number(response.expires_in) || 3600) * 1000;
             authorizedClient = client;
             folder = "";
             resolve();
-          }
-        },
-      });
-      c.requestAccessToken();
+          },
+        });
+        c.requestAccessToken();
+      } catch (error) {
+        fail("Google sign-in popup could not open. Allow popups and retry.", "DRIVE_AUTH");
+      }
     });
   }
   async function ensureAuthorized() {
-    if (token && authorizedClient === $("driveClientId").value.trim()) return;
+    if (token && authorizedClient === $("driveClientId").value.trim() && Date.now() < tokenExpiresAt - 60000) return;
     token = "";
+    tokenExpiresAt = 0;
     authorizedClient = "";
     await authorize();
   }
@@ -105,8 +169,16 @@
       if (!r.ok) {
         if (r.status === 401) {
           token = "";
+          tokenExpiresAt = 0;
           authorizedClient = "";
-          throw new Error("Google session expired. Tap Sync now to reconnect.");
+          const error = new Error("Google session expired. Tap Reconnect & sync to finish syncing.");
+          error.code = "DRIVE_AUTH";
+          throw error;
+        }
+        if (r.status === 403) {
+          const error = new Error("Drive denied access (403). Check the company account, OAuth permission, or IT policy.");
+          error.code = "DRIVE_FORBIDDEN";
+          throw error;
         }
         throw new Error("Drive returned " + r.status);
       }
@@ -198,19 +270,26 @@
     if (syncing) return;
     if (!A.ready) return;
     if (A.recording || A.aiBusy) {
-      status("Sync paused until recording / AI finishes");
+      status("Sync paused until recording / AI finishes", "paused");
       return;
     }
     if (!navigator.onLine) {
-      status("Offline · pending changes stay on this device");
+      status("Offline · pending changes stay on this device", "offline");
       return;
     }
     syncing = true;
+    A.feedback?.resolve("drive-sync");
+    status("Connecting to Drive…", "connecting");
     try {
+      // Request the Google popup before the first await loses the click gesture.
+      const authorization = ensureAuthorized();
+      await authorization;
       await A.flush();
-      status("Connecting to Drive…");
-      await ensureAuthorized();
-      const notesResult = await A.personal?.sync({list,api,upload,verifyUpload});
+      status("Checking Drive for new changes…", "downloading");
+      const notesResult = await A.personal?.sync({
+        list, api, upload, verifyUpload,
+        onProgress: (phase) => status(phase === "uploading" ? "Uploading Notes to Drive…" : "Checking Drive for Notes…", phase),
+      });
       const seen = new Set((await S.get("meta", "drive-seen-v3")) || []),
         bundles = [],
         received = [];
@@ -230,7 +309,7 @@
           "trashed=false and appProperties has { key='zminutes' and value='changes-v2' }",
         );
         if (legacyChanges.length && !(await S.get("meta", "drive-v3-cutover"))) {
-          status("Upgrading Drive history to Notes v3…");
+          status("Upgrading Drive history to Notes v3…", "downloading");
           const oldBundles = [];
           for (const item of legacyChanges)
             oldBundles.push(await api("drive/v3/files/" + item.id + "?alt=media"));
@@ -250,6 +329,7 @@
           $("newDriveHistory").hidden = !hasLocalWork;
           status(
             "Sync paused · old Drive snapshot found. Inspect it in Recovery before starting a new history.",
+            "error",
           );
           return;
         }
@@ -257,6 +337,7 @@
           $("newDriveHistory").hidden = false;
           status(
             "Sync paused · no Drive history visible. Check account and Client ID, or start a new history in Settings.",
+            "error",
           );
           return;
         }
@@ -267,7 +348,7 @@
         await A.reload();
       }
       if (A.recording || A.aiBusy) {
-        status("Sync paused until recording / AI finishes");
+        status("Sync paused until recording / AI finishes", "paused");
         return;
       }
       if (bundles.length) {
@@ -293,6 +374,7 @@
       ) {
         status(
           notesResult?.hasNotes ? (notesResult.conflicts ? "Notes synced · review Notes conflicts" : "Notes synced · no meeting data on Drive") : "No Drive data found. Check the Google account and Client ID before adding meetings.",
+          notesResult?.hasNotes ? "success" : "error",
         );
         return;
       }
@@ -300,8 +382,9 @@
         const batch = pending.slice(i, i + 30),
           payload = await S.bundle(batch, "v3");
         if (payload.ops.length) {
+          status("Uploading local changes to Drive…", "uploading");
           const uploaded = await upload(payload);
-          status("Verifying Drive upload…");
+          status("Verifying Drive upload…", "verifying");
           await verifyUpload(uploaded, payload);
           seen.add(uploaded.id);
         }
@@ -315,13 +398,15 @@
           : (await S.pendingV3()).length
             ? "New changes are waiting for sync"
             : "Synced · " + new Date().toLocaleTimeString(),
+        notesResult?.conflicts || A.conflicts.length ? "review" : (await S.pendingV3()).length ? "pending" : "success",
       );
     } catch (e) {
       console.error(e);
-      status("Sync needs attention · " + e.message);
-      if (manual) A.notice(e.message, true);
+      status("Sync needs attention · " + e.message, e.code === "DRIVE_AUTH" ? "auth" : e.code === "DRIVE_SETUP" ? "setup" : "error");
+      if (manual) A.notice(e.message, true, { source: "drive-sync" });
     } finally {
       syncing = false;
+      renderSyncControls();
     }
   }
   $("saveDriveClientBtn").onclick = () =>
@@ -331,27 +416,29 @@
         throw new Error("Use an OAuth Web Client ID, not an API key.");
       localStorage.setItem(CLIENT, id);
       token = "";
+      tokenExpiresAt = 0;
       authorizedClient = "";
       folder = "";
       $("newDriveHistory").hidden = true;
       await loadGIS();
-      status("Ready · tap Sync now");
+      status("Ready · tap Sync now", "pending");
     });
   $("syncBtn").onclick = $("syncSettingsBtn").onclick = () => sync();
   $("startDriveHistoryBtn").onclick = () => sync(true, true);
   window.addEventListener("zminutes:datachange", () => {
-    if (syncing) return;
-    status("Local changes · tap Sync now");
+    if (syncing || syncPhase === "auth") return;
+    status("Local changes · tap Sync now", "pending");
   });
   window.addEventListener("zminutes:ready", () => {
-    A.run(async () =>
+    A.run(async () => {
+      const hasPending = ((await S.get("meta", "drive-v3-cutover")) ? (await S.pendingV3()).length : (await S.pending()).length) > 0;
       status(
-        ((await S.get("meta", "drive-v3-cutover")) ? (await S.pendingV3()).length : (await S.pending()).length)
-          ? "Local changes · tap Sync now"
-          : "Saved on this device",
-      ),
-    );
-    if ($("driveClientId").value && navigator.onLine) loadGIS().catch(() => {});
+        hasPending ? "Local changes · tap Sync now" : "Saved on this device",
+        hasPending ? "pending" : "idle",
+      );
+      if ($("driveClientId").value && navigator.onLine)
+        loadGIS().catch((error) => status(error.message, "error"));
+    });
   });
   $("backupBtn").onclick = () =>
     A.run(async () => {

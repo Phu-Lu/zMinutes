@@ -1607,7 +1607,14 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => window.ZM?.ready);
     assert.ok(await page.evaluate(() => ZM.data.meetings.filter((m) => m.title.startsWith("Live test ")).every((m) => m.recordings.length === 1 && m.transcriptSegments.length === 1)));
     console.log("PASS: opt-in Live draft captures audio, respects custom Gemini/OpenAI models, saves transcript and avoids duplicate transcription");
-    const feedbackPage = await context.newPage();
+    // Start clock-controlled notification checks in a fresh browser process.
+    // Edge can leave active timers from the long audio/AI suite behind.
+    await contextB.close();
+    await context.close();
+    await browser.close();
+    browser = await chromium.launch({ headless: true });
+    const feedbackContext = await browser.newContext();
+    const feedbackPage = await feedbackContext.newPage();
     await feedbackPage.goto(base);
     await feedbackPage.waitForFunction(() => window.ZM?.ready);
     await feedbackPage.clock.install();
@@ -1715,8 +1722,7 @@ const server = http.createServer((req, res) => {
     assert.equal(await feedbackPage.locator("#recordStatus").isVisible(), false);
     console.log("PASS: notification durations, replacement, hover/focus, critical badges, Settings disclosures and cloud permission correction");
     await feedbackPage.close();
-    await contextB.close();
-    await context.close();
+    await feedbackContext.close();
   } catch (error) {
     const pages = browser?.contexts().flatMap((context) => context.pages()) || [];
     for (const [index, failedPage] of pages.entries()) {

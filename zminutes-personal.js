@@ -696,6 +696,7 @@
     await flush();
     document.querySelector(".app").inert = true;
     try {
+      drive.onProgress?.("downloading");
       const seen = new Set((await S.get("meta", "personal-seen-v1")) || []),
         files = await drive.list(
           "trashed=false and appProperties has { key='zminutes' and value='notes-v1' }",
@@ -716,6 +717,7 @@
       }
       const pending = await P.pending();
       for (let i = 0; i < pending.length; i += 20) {
+        drive.onProgress?.("uploading");
         const batch = pending.slice(i, i + 20),
           payload = await P.bundle(batch),
           file = await drive.upload(payload, "notes-v1");

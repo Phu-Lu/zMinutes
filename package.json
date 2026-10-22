@@ -5,7 +5,7 @@
   "scripts": {
     "build:editor": "esbuild zminutes-editor-entry.js --bundle --minify --format=iife --platform=browser --target=es2020 --outfile=zminutes-editor.bundle.js",
     "test": "node --test tests/*.test.js",
-    "test:browser": "npm run build:editor && node tests/browser.test.cjs && node tests/personal.browser.cjs"
+    "test:browser": "npm run build:editor && node tests/browser.test.cjs && node tests/personal.browser.cjs && node tests/sync-auth.browser.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
