@@ -78,4 +78,4 @@ npm run test:browser
 
 Browser tests use installed Edge on Windows and Playwright Chromium on Linux. On Linux, first run `npx playwright install --with-deps chromium`. Tests use synthetic audio and mocked cloud responses; they do not spend API credits or access a real Drive account. See [TESTING.md](TESTING.md) for coverage and physical-device checks. Deployment runs these tests before publishing.
 
-Active modules are `zminutes-model`, `repository`, `app`, `views`, `capture`, `audio`, `intelligence`, `exports`, `sync`, and `pwa`. Legacy scripts remain in the repository for reference but are not loaded by the new interface. Immutable history is retained for recoverability; history compaction is intentionally deferred.
+Active modules are `zminutes-model`, `repository`, `app`, `views`, `capture`, `audio`, `intelligence`, `exports`, `sync`, and `pwa`. Obsolete pre-v2 scripts and their legacy-only tests were removed; the current capture and browser regression tests remain. Immutable history is retained for recoverability; history compaction is intentionally deferred.
