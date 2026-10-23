@@ -286,6 +286,16 @@ const server = http.createServer((req, res) => {
         r.heads,
       );
     }, id);
+    await page.evaluate(() => syncNotes());
+    await phone.evaluate(() => syncNotes());
+    assert.match(await phone.locator(`#appHomeView [data-home-note="${id}"]`).textContent(), /PC edited/, "Home must refresh a note edited on another device");
+    await page.evaluate(async (id) => {
+      const r = await ZMinutesStore.get("personalNotes", id);
+      await ZMinutesPersonalStore.save(
+        { ...r.value, title: "PC edited again" },
+        r.heads,
+      );
+    }, id);
     await phone.evaluate(async (id) => {
       const r = await ZMinutesStore.get("personalNotes", id);
       await ZMinutesPersonalStore.save(
