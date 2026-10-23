@@ -59,11 +59,12 @@
   try {
     $("driveClientId").value = localStorage.getItem(CLIENT) || "";
   } catch {}
-  async function loadGIS() {
+  async function loadGIS({ passive = false } = {}) {
     if (window.google?.accounts?.oauth2) return;
     if (gis) return gis;
     gisLoading = true;
-    status("Loading Google sign-in…", "loading");
+    if (passive) renderSyncControls();
+    else status("Loading Google sign-in…", "loading");
     gis = new Promise((resolve, reject) => {
       const s = document.createElement("script");
       s.src = "https://accounts.google.com/gsi/client";
@@ -89,7 +90,9 @@
       throw e;
     }).finally(() => {
       gisLoading = false;
-      renderSyncControls();
+      if (syncing && syncPhase === "loading")
+        status("Waiting for Google sign-in…", "connecting");
+      else renderSyncControls();
     });
     return gis;
   }
@@ -437,7 +440,7 @@
         hasPending ? "pending" : "idle",
       );
       if ($("driveClientId").value && navigator.onLine)
-        loadGIS().catch((error) => status(error.message, "error"));
+        loadGIS({ passive: true }).catch(() => {});
     });
   });
   $("backupBtn").onclick = () =>

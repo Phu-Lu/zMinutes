@@ -1186,6 +1186,7 @@ const server = http.createServer((req, res) => {
     );
     await phone.evaluate(() => ZM.sync.sync());
     assert.equal(await phone.evaluate(() => ZM.data.meetings.length), 2);
+    assert.equal(await phone.locator("#appHomeView .home-stat").nth(1).locator("strong").textContent(), "2", "Home must show meetings downloaded by Sync without a page reload");
     await page.screenshot({ path: path.join(root, "test-results", "notes-v14-sync-v3.png") });
     assert.equal(
       await phone.evaluate(

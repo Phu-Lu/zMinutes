@@ -727,6 +727,7 @@
         await S.meta("personal-seen-v1", [...seen]);
       }
       if (A.section === "personal") await render();
+      else if (received.length && A.section === "home") await A.renderHome();
       return {
         hasNotes: (await P.all()).some((r) => r.value),
         conflicts: (await P.conflicts()).length,

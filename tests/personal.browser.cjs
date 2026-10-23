@@ -265,6 +265,7 @@ const server = http.createServer((req, res) => {
     failUpload = false;
     await page.evaluate(() => syncNotes());
     await phone.evaluate(() => syncNotes());
+    assert.equal(await phone.locator(`#appHomeView [data-home-note="${id}"]`).count(), 1, "Home must refresh when Sync downloads a note from another device");
     assert.equal(
       await phone.evaluate(
         async () =>

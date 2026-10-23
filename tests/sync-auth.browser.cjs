@@ -86,6 +86,8 @@ const server = http.createServer((req, res) => {
   try {
     await page.goto("http://127.0.0.1:" + server.address().port);
     await page.waitForFunction(() => ZM.ready && !!window.google?.accounts?.oauth2 && !document.getElementById("syncBtn").disabled);
+    assert.notEqual(await page.locator("#syncTopStatus").getAttribute("data-state"), "loading", "Preloading Google sign-in must not leave a permanent loading status");
+    assert.doesNotMatch(await page.locator("#driveStatus").textContent(), /Loading Google sign-in/);
     await page.evaluate(async () => {
       await ZMinutesPersonalStore.save({ id: "auth-note-1", title: "First local note", noteDoc: ZMinutesTiptap.empty(), updated: Date.now() });
     });
@@ -178,6 +180,19 @@ const server = http.createServer((req, res) => {
     await page.waitForTimeout(350);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
     await page.screenshot({ path: path.join(root, "test-results", "sync-home-phone-412.png"), fullPage: true });
+    const blockedContext = await browser.newContext();
+    let blockedRequests = 0;
+    await blockedContext.addInitScript(() => localStorage.setItem("zminutes-drive-client-id", "test.apps.googleusercontent.com"));
+    await blockedContext.route("https://accounts.google.com/gsi/client", (route) => {
+      blockedRequests++;
+      return route.abort();
+    });
+    const blockedPage = await blockedContext.newPage();
+    await blockedPage.goto("http://127.0.0.1:" + server.address().port);
+    await waitUntil(() => blockedRequests > 0, "Google sign-in preload was not attempted");
+    await blockedPage.waitForFunction(() => ZM.ready && !document.getElementById("syncBtn").disabled);
+    assert.notEqual(await blockedPage.locator("#syncTopStatus").getAttribute("data-state"), "loading", "Failed passive preload must not leave Home stuck on Loading Google");
+    await blockedContext.close();
     console.log("PASS: one-click Home and Settings sync, user-gesture sign-in, near-expiry token, 401 reconnect, 403, blocked popup, offline, pending Notes/meeting and mobile status");
   } finally {
     await browser.close();
