@@ -36,8 +36,9 @@
   }
   const worklet = `class Capture extends AudioWorkletProcessor{constructor(){super();this.buffer=new Float32Array(4096);this.used=0;this.port.onmessage=()=>{this.flush();this.port.postMessage({flushed:true})}}flush(){if(this.used){const samples=this.buffer.slice(0,this.used);this.port.postMessage({samples},[samples.buffer]);this.used=0}}process(inputs,outputs){const input=inputs[0]?.[0];if(input)for(let at=0;at<input.length;){const n=Math.min(input.length-at,4096-this.used);this.buffer.set(input.subarray(at,at+n),this.used);this.used+=n;at+=n;if(this.used===4096)this.flush()}for(const out of outputs[0]||[])out.fill(0);return true}}registerProcessor('zminutes-capture',Capture);`;
   class Capture {
-    constructor(stream, context, onChunk) {
+    constructor(stream, context, onChunk, extra = []) {
       this.stream = stream;
+      this.extra = extra;
       this.context = context;
       this.onChunk = onChunk;
       this.parts = [];
@@ -163,6 +164,7 @@
       this.closed = true;
       this.disconnect();
       this.stream?.getTracks().forEach((t) => t.stop());
+      this.extra.forEach((t) => t.stop());
       if (this.context.state !== "closed")
         this.context
           .close()

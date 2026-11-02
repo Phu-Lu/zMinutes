@@ -764,6 +764,18 @@
       event.preventDefault();
     }
   });
+  document.addEventListener("pointerdown", (event) => {
+    document.querySelectorAll(".mini-menu[open]").forEach((menu) => {
+      if (!menu.contains(event.target)) menu.open = false;
+    });
+  });
+  document.addEventListener("click", (event) => {
+    const menu = event.target.closest(".mini-menu");
+    if (menu && event.target.closest(".mini-menu-list button, .mini-menu-list label.audio-upload")) menu.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") document.querySelectorAll(".mini-menu[open]").forEach((menu) => (menu.open = false));
+  });
   $("newMeetingDialog").querySelector(".dialog-close").onclick = () =>
     $("newMeetingDialog").close();
   $("settingsNavBtn").onclick =

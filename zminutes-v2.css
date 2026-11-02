@@ -522,3 +522,34 @@ textarea {
   .notes-context { grid-template-columns: 1fr; }
   .notes-context .transcript-card { padding: 16px; }
 }
+
+/* ---- Compact audio/transcript/export controls ---- */
+.record-actions { display: flex; align-items: center; gap: 6px; flex: none !important; }
+.mini-menu { position: relative; flex: none; }
+.mini-menu > summary { display: inline-grid; place-items: center; min-width: 36px; min-height: 36px; padding: 0 10px; border-radius: 9px; color: var(--brand-ink); font-weight: 700; list-style: none; cursor: pointer; user-select: none; }
+.mini-menu > summary::-webkit-details-marker { display: none; }
+.mini-menu > summary:hover, .mini-menu[open] > summary { background: var(--surface-tint); }
+.mini-menu-list { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; display: grid; gap: 2px; min-width: 210px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 14px 35px #1c3d5b24; }
+.mini-menu.menu-up .mini-menu-list { top: auto; bottom: calc(100% + 6px); }
+.mini-menu-list button, .mini-menu-list .audio-upload { width: 100%; justify-content: flex-start; text-align: left; margin: 0; border: 0; background: transparent; }
+.mini-menu-list button:hover, .mini-menu-list .audio-upload:hover { background: var(--surface-tint); }
+.hint-box > summary { color: var(--muted); }
+.hint-box .hint-body { right: auto; left: 0; width: min(320px, calc(100vw - 48px)); padding: 10px 12px; }
+.hint-body .settings-help { margin: 0 0 8px; }
+.hint-body .settings-help:last-child { margin-bottom: 0; }
+.live-draft-option { margin-top: 0; min-height: 36px; }
+.transcript-translate { align-items: end; }
+.export-row > .mini-menu > summary { min-height: 40px; border-radius: 11px; background: var(--surface-tint); }
+/* layout fixes for the narrow Audio / Transcript column */
+.notes-audio .record-strip { flex-wrap: wrap; row-gap: 8px; }
+.notes-audio .record-strip > div:first-child { flex: 1 1 130px; min-width: 0; white-space: nowrap; }
+.notes-audio .record-strip .record-actions { margin-left: auto; }
+.live-option-row { justify-content: space-between; row-gap: 0; }
+.live-option-row > .live-draft-option { flex: 0 0 auto; white-space: nowrap; margin: 0; }
+.live-option-row > .link-btn { flex: 1 0 100%; white-space: normal; text-align: left; padding: 4px 0; min-height: 32px; }
+.transcript-actions > .mini-menu { flex: 0 0 auto; }
+.transcript-actions > .secondary { flex: 1 1 0; min-width: 0; }
+.transcript-actions.transcript-translate .translation-source { flex: 1 1 100%; }
+.transcript-actions.transcript-translate .translation-target { flex: 1 1 120px; min-width: 0; }
+.transcript-actions.transcript-translate > #translateTranscriptBtn { flex: 0 0 auto; }
+.transcript-actions > .secondary { white-space: nowrap; padding-left: 10px; padding-right: 10px; }

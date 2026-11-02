@@ -17,6 +17,7 @@
     A.recording = false;
     $("liveDraftEnabled").disabled = false;
     $("liveDraftEnabled").checked = false;
+    if ($("meetingAudioEnabled").title === "") $("meetingAudioEnabled").disabled = false;
     $("recordBtn").disabled = false;
     $("recordBtn").innerHTML = "● <span>Record</span>";
     $("recordDot").classList.remove("live");
@@ -125,16 +126,27 @@
     }
     // These calls must happen synchronously inside the user gesture, before any storage/network await.
     $("liveDraftEnabled").disabled = true;
+    $("meetingAudioEnabled").disabled = true;
+    const wantMeeting = $("meetingAudioEnabled").checked && !!navigator.mediaDevices?.getDisplayMedia;
+    // getDisplayMedia must be requested inside the click gesture, so start it before any await.
+    const displayOpening = wantMeeting
+      ? navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          systemAudio: "include",
+        })
+      : null;
     const context = new Context(),
       resume = context.resume();
     resume.catch(() => {});
     const r = { canceled: false },
       cancel = new Promise((_, reject) => (r.reject = reject));
     request = r;
+    displayOpening?.then((d) => { if (r.canceled) d.getTracks().forEach((t) => t.stop()); }).catch(() => {});
     A.recording = true;
     $("recordBtn").innerHTML = "× <span>Cancel</span>";
     message("Connecting to microphone…");
-    let stream, engine, active;
+    let stream, engine, active, mic, display, extra = [];
     try {
       const opening = navigator.mediaDevices
         .getUserMedia({ audio: true })
@@ -153,6 +165,20 @@
         ),
         cancel,
       ]);
+      mic = stream;
+      extra = [...mic.getTracks()];
+      if (displayOpening) {
+        message("Choose the meeting tab or screen and tick Share audio…");
+        display = await Promise.race([displayOpening, cancel]);
+        extra.push(...display.getTracks());
+        if (r.canceled) throw new Error("Recording canceled");
+        if (!display.getAudioTracks().length)
+          throw new Error("No meeting audio was shared. Choose a tab or Entire screen and tick “Share audio”, then record again.");
+        const mix = context.createMediaStreamDestination();
+        context.createMediaStreamSource(mic).connect(mix);
+        context.createMediaStreamSource(new MediaStream(display.getAudioTracks())).connect(mix);
+        stream = mix.stream;
+      }
       message("Microphone connected. Starting capture…");
       const session = {
           id: crypto.randomUUID(),
@@ -179,7 +205,7 @@
           active.live ||= A.live.start(session, liveConfig);
           A.live.push(active.live, bytes);
         }
-      });
+      }, extra);
       active.engine = engine;
       await Promise.race([
         bounded(
@@ -218,9 +244,14 @@
           finish();
         }
       }, 1000);
-      stream.getAudioTracks().forEach((track) =>
+      (display ? mic : stream).getAudioTracks().forEach((track) =>
         track.addEventListener("ended", () => {
           if (recording === active) finish();
+        }),
+      );
+      display?.getTracks().forEach((track) =>
+        track.addEventListener("ended", () => {
+          if (recording === active) message("Meeting audio sharing stopped. Still recording the microphone only.", true);
         }),
       );
     } catch (e) {
@@ -228,12 +259,13 @@
       if (active?.live) { A.live.stop(active.live, "Audio startup failed."); A.live.finish(active.live); }
       engine?.abort();
       stream?.getTracks().forEach((t) => t.stop());
+      extra.forEach((t) => t.stop());
       if (context.state !== "closed") context.close().catch(() => {});
       request = null;
       reset();
       message(
         e.name === "NotAllowedError"
-          ? "Microphone access was blocked by the browser or system."
+          ? (wantMeeting ? "Microphone or screen-share permission was cancelled or blocked." : "Microphone access was blocked by the browser or system.")
           : e.message,
         true,
       );
@@ -260,6 +292,10 @@
     await A.navigate("settings");
     $("recordingRecoveryDetails").open = true;
     $("recordingRecoveryDetails").scrollIntoView({ block: "center" });
+  }
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    $("meetingAudioEnabled").disabled = true;
+    $("meetingAudioEnabled").title = "Meeting audio capture needs a desktop browser (Chrome or Edge).";
   }
   $("liveCloudHelpBtn").onclick = () => A.run(async () => {
     A.tab = "summary";
