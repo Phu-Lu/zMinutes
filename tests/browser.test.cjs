@@ -558,7 +558,7 @@ const server = http.createServer((req, res) => {
     assert.ok(bytes.includes(Buffer.from("Custom recap")));
     assert.ok(bytes.includes(Buffer.from("phased rollout")));
     assert.equal(bytes.includes(Buffer.from("Nội dung tiếng Việt")), false);
-    assert.equal(bytes.includes(Buffer.from("word/media/")), false);
+    assert.equal(bytes.includes(Buffer.from("word/media/photo1.jpeg")), true, "Word recap embeds meeting photos");
     const sharedBlocks = await page.evaluate(() =>
       ZM.exports
         .blocks(ZM.current())
@@ -604,7 +604,7 @@ const server = http.createServer((req, res) => {
     assert.match(printed, /Custom recap/);
     assert.match(printed, /phased rollout/);
     assert.doesNotMatch(printed, /Nội dung tiếng Việt/);
-    assert.equal(await page.locator(".print-document img").count(), 0);
+    assert.equal(await page.locator(".print-document img").count(), 1, "PDF recap embeds meeting photos");
     await page.emulateMedia({ media: "print" });
     assert.equal(await page.locator("#settingsView").isVisible(), false);
     assert.ok(await page.locator(".print-document").isVisible());

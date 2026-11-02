@@ -48,19 +48,84 @@
     blocks(m)
       .map((b) => b.title)
       .join("\n\n");
+  async function photoJpegs(m) {
+    const out = [];
+    for (const p of m.photos || []) {
+      if (!p.mediaId) continue;
+      try {
+        const url = await S.mediaURL(p.mediaId);
+        if (!url) continue;
+        const bitmap = await createImageBitmap(await (await fetch(url)).blob());
+        const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+        const width = Math.max(1, Math.round(bitmap.width * scale)),
+          height = Math.max(1, Math.round(bitmap.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+        if (jpeg) out.push({ bytes: new Uint8Array(await jpeg.arrayBuffer()), width, height, note: p.note || "" });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    return out;
+  }
   async function print() {
     await A.flush();
     const m = structuredClone(A.current());
     if (!m) return;
+    blocks(m); // throws when there is nothing to export
     document.querySelector(".print-document")?.remove();
     const root = document.createElement("article");
     root.className = "print-document";
-    for (const b of blocks(m)) {
-      const el = document.createElement(b.level ? "h" + b.level : "p");
-      el.textContent = b.title;
+    const add = (tag, text) => {
+      const el = document.createElement(tag);
+      el.textContent = text;
       root.append(el);
+    };
+    const rich = (raw) => {
+      const box = document.createElement("div");
+      box.className = "print-rich";
+      box.innerHTML = A.formatAiText(raw);
+      root.append(box);
+    };
+    add("h1", m.title || "Untitled meeting");
+    const meta = [A.formatDate(m.date), m.location].filter(Boolean).join(" · ");
+    if (meta) add("p", meta);
+    if (plain(m.summary).trim()) { add("h2", "Recap"); rich(m.summary); }
+    if (plain(m.solutions).trim()) {
+      add("h2", "Suggested solutions");
+      rich(m.solutions);
+      for (const source of m.solutionSources) add("p", source.title + " · " + source.url);
+    }
+    const photos = (m.photos || []).filter((p) => p.mediaId);
+    if (photos.length) {
+      add("h2", "Photos");
+      const grid = document.createElement("div");
+      grid.className = "print-photos";
+      for (const p of photos) {
+        const url = await S.mediaURL(p.mediaId);
+        if (!url) continue;
+        const figure = document.createElement("figure"),
+          img = document.createElement("img");
+        img.src = url;
+        img.alt = p.note || "Field photo";
+        figure.append(img);
+        if (p.note) {
+          const cap = document.createElement("figcaption");
+          cap.textContent = p.note;
+          figure.append(cap);
+        }
+        grid.append(figure);
+      }
+      root.append(grid);
     }
     document.body.append(root);
+    await Promise.all([...root.querySelectorAll("img")].map((img) => img.decode().catch(() => {})));
     window.print();
   }
   const crc = (bytes) => {
@@ -125,20 +190,69 @@
     await A.flush();
     const m = structuredClone(A.current());
     if (!m) return;
-    const p = (text, bold = false) =>
-      '<w:p><w:pPr><w:spacing w:after="120"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>' +
-      (bold ? "<w:b/>" : "") +
-      '</w:rPr><w:t xml:space="preserve">' +
-      xml(text) +
-      "</w:t></w:r></w:p>";
-    const body = blocks(m)
-      .flatMap((b) => b.title.split("\n").map((line) => p(line, !!b.level)))
-      .join("");
+    blocks(m); // throws when there is nothing to export
+    const run = (text, bold = false, size = 0) =>
+      '<w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>' +
+      (bold ? "<w:b/>" : "") + (size ? `<w:sz w:val="${size}"/>` : "") +
+      '</w:rPr><w:t xml:space="preserve">' + xml(text) + "</w:t></w:r>";
+    const para = (inner, { indent = 0, after = 120, border = false } = {}) =>
+      "<w:p><w:pPr>" +
+      (border ? '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>' : "") +
+      `<w:spacing w:after="${after}"/>` +
+      (indent ? `<w:ind w:left="${indent}" w:hanging="260"/>` : "") +
+      "</w:pPr>" + inner + "</w:p>";
+    const inline = (el, bold = false) =>
+      [...el.childNodes].map((n) =>
+        n.nodeType === 3 ? run(n.textContent, bold)
+          : n.nodeName === "BR" ? "<w:r><w:br/></w:r>"
+          : n.nodeType === 1 ? inline(n, bold || n.nodeName === "STRONG" || n.nodeName === "B")
+          : "").join("");
+    const rich = (raw) => {
+      const box = document.createElement("div");
+      box.innerHTML = A.formatAiText(raw);
+      return [...box.children].map((el) => {
+        if (el.nodeName === "H3") return para(run(el.textContent, true, 26), { after: 80 });
+        if (el.nodeName === "HR") return para("", { border: true, after: 80 });
+        if (el.nodeName === "UL" || el.nodeName === "OL")
+          return [...el.children].map((li, i) =>
+            para(run(el.nodeName === "UL" ? "•  " : `${i + 1}.  `) + inline(li), { indent: 400, after: 60 })).join("");
+        return para(inline(el));
+      }).join("");
+    };
+    const meta = [A.formatDate(m.date), m.location].filter(Boolean).join(" · ");
+    let body = para(run(m.title || "Untitled meeting", true, 40));
+    if (meta) body += para(run(meta));
+    if (plain(m.summary).trim()) body += para(run("Recap", true, 30)) + rich(m.summary);
+    if (plain(m.solutions).trim()) {
+      body += para(run("Suggested solutions", true, 30)) + rich(m.solutions);
+      for (const source of m.solutionSources) body += para(run(source.title + " · " + source.url));
+    }
     const files = {};
+    const photos = await photoJpegs(m);
+    let rels = "";
+    if (photos.length) {
+      body += para(run("Photos", true, 30));
+      const maxW = 5760000, maxH = 4300000;
+      photos.forEach((photo, i) => {
+        const n = i + 1,
+          k = Math.min(maxW / photo.width, maxH / photo.height),
+          cx = Math.round(photo.width * k),
+          cy = Math.round(photo.height * k);
+        files[`word/media/photo${n}.jpeg`] = photo.bytes;
+        rels += `<Relationship Id="rIdPhoto${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/photo${n}.jpeg"/>`;
+        body += `<w:p><w:pPr><w:keepNext/><w:spacing w:after="40"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="Photo ${n}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${n}" name="photo${n}.jpeg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdPhoto${n}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+        if (photo.note) body += para(run(photo.note, false, 18));
+      });
+    }
     files["[Content_Types].xml"] =
-      '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+      '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+      (photos.length ? '<Default Extension="jpeg" ContentType="image/jpeg"/>' : "") +
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
     files["_rels/.rels"] =
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
+    if (photos.length)
+      files["word/_rels/document.xml.rels"] =
+        '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + rels + "</Relationships>";
     files["word/document.xml"] =
       '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>' +
       body +

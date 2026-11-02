@@ -318,7 +318,7 @@
           .join("") || empty("No stakeholders yet.");
     }
     $("summaryOutput").innerHTML = m.summary
-      ? A.formatAiText(m.summary)
+      ? A.formatAiText(m.summary) + A.recapPhotosHtml(m)
       : "<p>No recap yet. Generate one when the meeting ends.</p>";
     $("summaryOutput").classList.toggle("empty", !m.summary);
     $("generateSummaryBtn").textContent = m.summary ? "✦ Regenerate recap" : "✦ Generate recap";

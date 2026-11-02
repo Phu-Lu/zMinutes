@@ -335,6 +335,13 @@
     }).join("");
     return A.sanitize(html);
   };
+  A.recapPhotosHtml = (m) => {
+    const photos = (m.photos || []).filter((p) => p.mediaId);
+    if (!photos.length) return "";
+    return `<div class="recap-photos-title">Photos</div><div class="recap-photos">${photos
+      .map((p) => `<figure><img data-media="${A.esc(p.mediaId)}" alt="${A.esc(p.note || "Field photo")}">${p.note ? `<figcaption>${A.esc(p.note)}</figcaption>` : ""}</figure>`)
+      .join("")}</div>`;
+  };
   A.renderConflicts = async () => {
     const conflicts = ZMinutesModel.reduce(await S.all("journal")).conflicts;
     A.conflicts = conflicts;
