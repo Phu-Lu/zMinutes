@@ -1,4 +1,4 @@
-const CACHE = "zminutes-v44";
+const CACHE = "zminutes-v46";
 const FILES = [
   "./index.html",
   "./zminutes-tokens.css?v=39",
