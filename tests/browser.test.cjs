@@ -537,6 +537,7 @@ const server = http.createServer((req, res) => {
       "PASS: multi-clip transcript, custom recap, Gemini and OpenAI grounded solutions",
     );
     const rawDownload = page.waitForEvent("download");
+    await page.locator("#packageBtn").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#packageBtn").click();
     const raw = await rawDownload,
       rawMeeting = JSON.parse(fs.readFileSync(await raw.path(), "utf8"));
@@ -547,6 +548,7 @@ const server = http.createServer((req, res) => {
       rawMeeting.recordings.some((r) => r.data?.startsWith("data:audio/")),
     );
     const downloadPromise = page.waitForEvent("download");
+    await page.locator("#docBtn").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#docBtn").click();
     const doc = await downloadPromise,
       bytes = fs.readFileSync(await doc.path());
@@ -577,6 +579,7 @@ const server = http.createServer((req, res) => {
         },
       });
     });
+    await page.locator("#shareBtn").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#shareBtn").click();
     await page.waitForFunction(() => window.lastShare?.text);
     assert.equal(
@@ -647,6 +650,7 @@ const server = http.createServer((req, res) => {
         });
       },
     );
+    await page.locator("#transcriptRecapBtn").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#transcriptRecapBtn").click();
     await legacyStarted;
     assert.equal(await page.locator("#summaryPanel").isVisible(), true);
@@ -913,6 +917,7 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => ZM.current().summaryType === "ai");
     assert.match(refreshedPrompt, /NEW TRANSLATED WAREHOUSE FINDING/);
     assert.match(digestPrompt, /NEW TRANSLATED WAREHOUSE FINDING/);
+    await page.waitForFunction(() => /changes the receiving workflow/.test(document.getElementById("summaryOutput").textContent));
     assert.match(await page.locator("#summaryOutput").textContent(), /changes the receiving workflow/);
     assert.equal(await page.locator("#summaryOutput h3").count(), 3);
     assert.equal(await page.locator("#summaryOutput li").count(), 5);
