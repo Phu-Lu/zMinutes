@@ -1,18 +1,18 @@
-const CACHE = "zminutes-v48";
+const CACHE = "zminutes-v49";
 const FILES = [
   "./index.html",
   "./zminutes-tokens.css?v=39",
   "./zminutes-layout.css?v=39",
   "./styles.css?v=39",
-  "./zminutes-v2.css?v=46",
+  "./zminutes-v2.css?v=49",
   "./zminutes-ui.css?v=48",
   "./zminutes-model.js?v=39",
   "./zminutes-repository.js?v=39",
   "./zminutes-app.js?v=46",
   "./zminutes-feedback.js?v=39",
   "./zminutes-views.js?v=46",
-  "./zminutes-editor.bundle.js?v=39",
-  "./zminutes-rich-notes.js?v=39",
+  "./zminutes-editor.bundle.js?v=49",
+  "./zminutes-rich-notes.js?v=49",
   "./zminutes-capture.js?v=44",
   "./zminutes-audio.js?v=44",
   "./zminutes-intelligence.js?v=39",

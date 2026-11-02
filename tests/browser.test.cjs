@@ -1729,6 +1729,28 @@ const server = http.createServer((req, res) => {
     console.log("PASS: notification durations, replacement, hover/focus, critical badges, Settings disclosures and cloud permission correction");
     await feedbackPage.close();
     await feedbackContext.close();
+    // Action item blocks in Notes are mirrored into the project's Tasks.
+    const taskContext = await browser.newContext();
+    const taskPage = await taskContext.newPage();
+    await taskPage.goto(base);
+    await taskPage.waitForFunction(() => window.ZM?.ready);
+    await taskPage.locator("#newMeetingBtn").click();
+    await taskPage.locator("#newTitle").fill("Action sync");
+    await taskPage.locator('#newMeetingForm button[type="submit"]').click();
+    await taskPage.waitForSelector('#noteEditor .ProseMirror[contenteditable="true"]');
+    await taskPage.getByRole("button", { name: "Action item" }).click();
+    await taskPage.waitForFunction(() => document.activeElement?.closest?.("#noteEditor"));
+    await taskPage.keyboard.type("Send the quote");
+    await taskPage.evaluate(() => ZM.flush());
+    await taskPage.waitForFunction(() => ZM.data.tasks.some((t) => t.title === "Send the quote" && t.meetingId === ZM.meetingId));
+    await taskPage.keyboard.type(" by Friday");
+    await taskPage.evaluate(() => ZM.flush());
+    await taskPage.waitForFunction(() => ZM.data.tasks.length === 1 && ZM.data.tasks[0].title === "Send the quote by Friday");
+    await taskPage.reload();
+    await taskPage.waitForFunction(() => window.ZM?.ready && ZM.data.tasks.length === 1);
+    assert.equal(await taskPage.evaluate(() => ZM.data.tasks[0].title), "Send the quote by Friday");
+    console.log("PASS: Action item in Notes creates, renames and persists a Task");
+    await taskContext.close();
   } catch (error) {
     const pages = browser?.contexts().flatMap((context) => context.pages()) || [];
     for (const [index, failedPage] of pages.entries()) {

@@ -32,9 +32,9 @@ const NoteCallout = Node.create({
   name: "noteCallout",
   group: "block",
   content: "inline*",
-  addAttributes() { return { kind: { default: "important" } }; },
-  parseHTML() { return [{ tag: "p[data-note-kind]", getAttrs: (el) => ({ kind: el.getAttribute("data-note-kind") }) }]; },
-  renderHTML({ node, HTMLAttributes }) { return ["p", mergeAttributes(HTMLAttributes, { "data-note-kind": node.attrs.kind, class: "note-callout" }), 0]; },
+  addAttributes() { return { kind: { default: "important" }, taskId: { default: "" } }; },
+  parseHTML() { return [{ tag: "p[data-note-kind]", getAttrs: (el) => ({ kind: el.getAttribute("data-note-kind"), taskId: el.getAttribute("data-task-id") || "" }) }]; },
+  renderHTML({ node }) { return ["p", { "data-note-kind": node.attrs.kind, ...(node.attrs.taskId ? { "data-task-id": node.attrs.taskId } : {}), class: "note-callout" }, 0]; },
 });
 const SourceBlock = Node.create({
   name: "sourceBlock",

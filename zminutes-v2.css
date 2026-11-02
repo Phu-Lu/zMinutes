@@ -570,3 +570,6 @@ textarea {
   .print-document figure img { width: 100%; max-height: 90mm; object-fit: contain; }
   .print-document figcaption { font-size: 9pt; color: #444; }
 }
+
+/* hint inside an empty meeting note */
+#noteEditor .ProseMirror > p:only-child:has(> br.ProseMirror-trailingBreak:only-child)::before { content: "Type your notes here, or tap Decision / Action item / Important below. Action items also appear in Tasks."; float: left; height: 0; color: #9a96ad; pointer-events: none; }

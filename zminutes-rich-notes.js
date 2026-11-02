@@ -4,17 +4,59 @@
   let editor, meetingId = "", dirty = false, timer, mounting = false, generation = 0;
   const host = document.getElementById("noteEditor");
   const status = document.getElementById("noteMigrationStatus");
+  // Every Action item block carries a stable task ID so it can be mirrored into the project's Tasks.
+  function assignTaskIds() {
+    if (!editor?.isEditable) return;
+    const missing = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "noteCallout" && node.attrs.kind === "task" && !node.attrs.taskId) missing.push([pos, node.attrs]);
+    });
+    if (!missing.length) return;
+    const tr = editor.state.tr.setMeta("addToHistory", false);
+    for (const [pos, attrs] of missing) tr.setNodeMarkup(pos, undefined, { ...attrs, taskId: "note-task-" + crypto.randomUUID() });
+    editor.view.dispatch(tr);
+  }
+  function syncTasks(m, doc) {
+    const wanted = new Map();
+    const visit = (node) => {
+      if (node.type === "noteCallout" && node.attrs?.kind === "task" && node.attrs.taskId) {
+        const title = (node.content || []).map((n) => n.text || "").join("").trim();
+        if (title) wanted.set(node.attrs.taskId, title);
+      }
+      (node.content || []).forEach(visit);
+    };
+    visit(doc);
+    for (const [id, title] of wanted) {
+      const task = A.data.tasks.find((t) => t.id === id);
+      if (!task) {
+        const created = M.normalize("tasks", { id, projectId: m.projectId, meetingId: m.id, title, status: "in-progress" });
+        A.data.tasks.push(created);
+        A.queue("tasks", created);
+      } else if (task.title !== title) {
+        task.title = title;
+        A.queue("tasks", task);
+      }
+    }
+    // A removed Action item removes its open task; finished tasks stay as history.
+    for (const task of A.data.tasks.filter((t) => t.meetingId === m.id && t.id.startsWith("note-task-") && !wanted.has(t.id) && t.status !== "done")) {
+      A.data.tasks.splice(A.data.tasks.indexOf(task), 1);
+      A.pending.delete(M.key("tasks", task.id));
+      S.remove("tasks", task.id).catch(() => {});
+    }
+  }
   function flushPending() {
     clearTimeout(timer);
     if (!dirty || !editor || !meetingId) return;
     const m = A.data.meetings.find((item) => item.id === meetingId);
     if (!m) return;
+    assignTaskIds();
     const doc = editor.getJSON();
     m.noteDoc = doc;
     m.noteSchemaVersion = 1;
     m.note = M.noteText(doc);
     dirty = false;
     A.queue("meetings", m);
+    syncTasks(m, doc);
   }
   function changed() {
     if (mounting) return;
@@ -69,7 +111,7 @@
   function insertCallout(kind) {
     if (!editor?.isEditable) return;
     const pos = editor.state.selection.to;
-    editor.chain().focus().insertContentAt(pos, { type: "noteCallout", attrs: { kind }, content: [] }).run();
+    editor.chain().focus().insertContentAt(pos, { type: "noteCallout", attrs: { kind, ...(kind === "task" ? { taskId: "note-task-" + crypto.randomUUID() } : {}) }, content: [] }).run();
   }
   function insertSource(value, label, source = "transcript", language = "") {
     if (!editor?.isEditable || !value) return false;
