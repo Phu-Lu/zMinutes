@@ -1,0 +1,203 @@
+diff --git a/index.html b/index.html
+index cbcdb01..8d49f5d 100644
+--- a/index.html
++++ b/index.html
+@@ -11,7 +11,7 @@
+   <link rel="stylesheet" href="styles.css?v=39" />
+   <link rel="stylesheet" href="zminutes-v2.css?v=46" />
+   <link rel="stylesheet" href="zminutes-layout.css?v=39" />
+-  <link rel="stylesheet" href="zminutes-ui.css?v=42" />
++  <link rel="stylesheet" href="zminutes-ui.css?v=47" />
+   <title>zMinutes</title>
+ </head>
+ <body>
+@@ -151,7 +151,7 @@
+       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button><button id="scanLegacyChangesBtn" class="secondary">Review older-app changes</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
+       <details id="recordingRecoveryDetails" class="settings-card settings-disclosure"><summary>Interrupted recordings <span id="recordingRecoveryCount" class="badge">0</span></summary><p>Recover audio saved on this device when recording was interrupted. This does not restore deleted files.</p><div id="recoveryList"></div></details>
+       <details id="syncConflictsDetails" class="settings-card settings-disclosure"><summary>Sync conflicts <span id="conflictCount" class="badge">0</span></summary><p>Both versions are kept until you choose which to use.</p><div id="conflictList"></div></details>
+-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 46</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
++      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 47</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+       </div></div>
+     </section>
+   </main>
+@@ -174,7 +174,7 @@
+   <script src="zminutes-recovery.js?v=39"></script>
+   <script src="zminutes-reminders.js?v=39"></script>
+   <script src="zminutes-personal-store.js?v=39"></script>
+-  <script src="zminutes-personal.js?v=43"></script>
++  <script src="zminutes-personal.js?v=47"></script>
+   <script src="zminutes-personal-export.js?v=39"></script>
+   <script src="zminutes-pwa.js?v=39"></script>
+ </body>
+diff --git a/sw.js b/sw.js
+index e8f99a7..1730141 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,11 +1,11 @@
+-const CACHE = "zminutes-v46";
++const CACHE = "zminutes-v47";
+ const FILES = [
+   "./index.html",
+   "./zminutes-tokens.css?v=39",
+   "./zminutes-layout.css?v=39",
+   "./styles.css?v=39",
+   "./zminutes-v2.css?v=46",
+-  "./zminutes-ui.css?v=42",
++  "./zminutes-ui.css?v=47",
+   "./zminutes-model.js?v=39",
+   "./zminutes-repository.js?v=39",
+   "./zminutes-app.js?v=46",
+@@ -23,7 +23,7 @@ const FILES = [
+   "./zminutes-reminders.js?v=39",
+   "./zminutes-pwa.js?v=39",
+   "./zminutes-personal-store.js?v=39",
+-  "./zminutes-personal.js?v=43",
++  "./zminutes-personal.js?v=47",
+   "./zminutes-personal-export.js?v=39",
+   "./manifest.webmanifest?v=39",
+   "./zminutes-icon.svg",
+diff --git a/tests/personal.browser.cjs b/tests/personal.browser.cjs
+index d9bd797..334aa8d 100644
+--- a/tests/personal.browser.cjs
++++ b/tests/personal.browser.cjs
+@@ -196,15 +196,18 @@ const server = http.createServer((req, res) => {
+         !(await ZMinutesPersonalStore.all())[0].value.recordings[0].audioId,
+     );
+     assert.match(await editor.innerText(), /Voice note transcript/);
++    await page.locator("#pnTrash").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
+     await page.locator("#pnTrash").click();
+     await page.waitForFunction(
+       () => document.getElementById("pnTrash").textContent === "Restore",
+     );
++    await page.locator("#pnTrash").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
+     await page.locator("#pnTrash").click();
+     await page.waitForFunction(
+       () => document.getElementById("pnTrash").textContent === "Move to Trash",
+     );
+     const downloaded = page.waitForEvent("download");
++    await page.locator("#pnWord").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
+     await page.locator("#pnWord").click();
+     const word = await downloaded;
+     const bytes = fs.readFileSync(await word.path());
+diff --git a/zminutes-personal.js b/zminutes-personal.js
+index b3e1c7d..b2b3f1b 100644
+--- a/zminutes-personal.js
++++ b/zminutes-personal.js
+@@ -9,9 +9,14 @@
+   const view = document.createElement("section");
+   view.id = "personalView";
+   view.className = "hidden";
++  const emptyDetail =
++    '<div class="pn-empty"><h2>Pick a note</h2><p>Select a note on the left, or start a new one.</p><button id="pnEmptyNew" class="primary">+ New note</button></div>';
+   view.innerHTML = `<div class="panel-intro"><h1>Notes</h1><p>Your personal notebook. Independent of meetings and projects.</p></div>
+-  <div class="personal-workspace"><aside class="personal-list"><button id="pnNew" class="primary">+ New note</button><input id="pnSearch" aria-label="Search notes" placeholder="Search notes…"><select id="pnFilter" aria-label="Filter notes"><option>All</option><option>Pinned</option><option>Archived</option><option>Trash</option></select><input id="pnLabelFilter" aria-label="Filter by label" placeholder="Filter by label"><div id="pnList"></div></aside>
+-  <section id="pnDetail" class="personal-detail"><p>Select a note or create one.</p></section></div>`;
++  <div class="personal-workspace"><aside class="personal-list"><button id="pnNew" class="primary">+ New note</button><input id="pnSearch" aria-label="Search notes" placeholder="Search notes…"><div class="pn-filters"><select id="pnFilter" aria-label="Filter notes"><option>All</option><option>Pinned</option><option>Archived</option><option>Trash</option></select><input id="pnLabelFilter" aria-label="Filter by label" placeholder="Label"></div><div id="pnList"></div></aside>
++  <section id="pnDetail" class="personal-detail">${emptyDetail}</section></div>`;
++  view.addEventListener("click", (ev) => {
++    if (ev.target.closest("#pnEmptyNew")) view.querySelector("#pnNew").click();
++  });
+   document.querySelector("main.shell").append(view);
+   let rows = [],
+     current = null,
+@@ -106,6 +111,12 @@
+     renderList();
+     return id;
+   }
++  function noteDate(ms) {
++    const d = new Date(ms);
++    if (Number.isNaN(d.getTime())) return "";
++    const opts = d.getFullYear() === new Date().getFullYear() ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" };
++    return d.toLocaleDateString(undefined, opts);
++  }
+   function renderList() {
+     const notes = rows
+       .filter((r) => r.value)
+@@ -135,7 +146,7 @@
+       notes
+         .map(
+           (n) =>
+-            `<button class="personal-item ${current?.id === n.id ? "selected" : ""}" data-note="${e(n.id)}"><strong>${n.pinned ? "★ " : ""}${e(n.title || "Untitled note")}</strong><span>${e(n.note.slice(0, 100) || "Empty note")}</span><small>${e(n.labels.join(" · "))}</small></button>`,
++            `<button class="personal-item ${current?.id === n.id ? "selected" : ""}" data-note="${e(n.id)}"><strong>${n.pinned ? "★ " : ""}${e(n.title || "Untitled note")}</strong><span class="pn-preview">${e(n.note.replace(/\s+/g, " ").trim().slice(0, 140) || "Empty note")}</span><small class="pn-card-meta"><time>${e(noteDate(n.updated))}</time>${n.labels.filter(Boolean).map((l) => `<i>${e(l)}</i>`).join("")}</small></button>`,
+         )
+         .join("") || "<p>No notes here.</p>";
+   }
+@@ -148,7 +159,7 @@
+         current = null;
+         editor?.destroy();
+         editor = null;
+-        $("pnDetail").innerHTML = "<p>Select a note.</p>";
++        $("pnDetail").innerHTML = emptyDetail;
+       } else if (JSON.stringify(row.heads) !== JSON.stringify(current.heads))
+         await open(row.id);
+     }
+@@ -170,26 +181,25 @@
+     review = null;
+     view.classList.add("personal-open");
+     $("pnDetail").innerHTML =
+-      `<button id="pnBack" class="link-btn">← All notes</button><input id="pnTitle" aria-label="Note title" placeholder="Untitled note"><div class="personal-actions"><button id="pnPin"></button><button id="pnArchive"></button><button id="pnTrash"></button>${row.value.trashed ? '<button id="pnDelete">Delete forever</button>' : ""}</div><label>Labels<input id="pnLabels" placeholder="Personal, Ideas, …"></label><p id="pnSave" role="status">Saved on this device</p>
++      `<div class="pn-head"><button id="pnBack" class="link-btn">← All notes</button><input id="pnTitle" aria-label="Note title" placeholder="Untitled note"><button id="pnPin"></button><details class="mini-menu"><summary aria-label="More note actions" title="More note actions">⋯</summary><div class="mini-menu-list"><button id="pnArchive"></button><button id="pnTrash"></button>${row.value.trashed ? '<button id="pnDelete">Delete forever</button>' : ""}<button id="pnCopy">Copy text</button><button id="pnPdf">Save as PDF</button><button id="pnWord">Download Word</button></div></details></div><div class="pn-meta"><input id="pnLabels" aria-label="Labels" placeholder="Labels: Personal, Ideas, …"><span id="pnSave" role="status">Saved on this device</span></div>
+       <div class="personal-tools" role="toolbar" aria-label="Note formatting">${[
+-        ["bold", "Bold"],
+-        ["italic", "Italic"],
+-        ["underline", "Underline"],
+-        ["strike", "Strike"],
+-        ["bulletList", "Bullets"],
+-        ["orderedList", "Numbered"],
+-        ["taskList", "Checklist"],
+-        ["undo", "Undo"],
+-        ["redo", "Redo"],
++        ["bold", "B", "Bold"],
++        ["italic", "I", "Italic"],
++        ["underline", "U", "Underline"],
++        ["strike", "S", "Strikethrough"],
++        ["bulletList", "•", "Bullet list"],
++        ["orderedList", "1.", "Numbered list"],
++        ["taskList", "☑", "Checklist"],
++        ["undo", "↶", "Undo"],
++        ["redo", "↷", "Redo"],
+       ]
+         .map(
+-          ([cmd, label]) =>
+-            `<button data-pn-command="${cmd}" type="button">${label}</button>`,
++          ([cmd, glyph, label]) =>
++            `<button data-pn-command="${cmd}" type="button" title="${label}" aria-label="${label}">${glyph}</button>`,
+         )
+         .join(
+           "",
+-        )}<label class="secondary">Picture<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div><p id="pnStatus" role="status" hidden></p>
+-      <div class="personal-actions"><button id="pnCopy">Copy text</button><button id="pnPdf">PDF</button><button id="pnWord">Word</button></div>
++        )}<label class="secondary" title="Insert picture" aria-label="Insert picture">🖼<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div><p id="pnStatus" role="status" hidden></p>
+       <details><summary>Pictures</summary><div id="pnPhotos"></div></details>
+       <section class="personal-audio"><h2>Audio notes</h2><div class="personal-actions"><button id="pnRecord" class="primary">Record</button><span id="pnTimer">00:00</span></div><label><input id="pnConsent" type="checkbox"> Allow cloud transcription for this note</label><p>Audio stays on this device. Transcribe sends audio to your selected provider.</p><div id="pnRecordings"></div><details><summary>Interrupted recordings</summary><div id="pnRecovery"></div></details></section>
+       <section id="pnReview" hidden><h2>Review transcript</h2><progress id="pnProgress" value="0" max="1"></progress><button id="pnCancel">Cancel transcription</button><textarea id="pnTranscript" aria-label="Review transcript"></textarea><div class="personal-actions"><button id="pnInsert">Insert into note</button><button id="pnAppend">Append to note</button></div><p id="pnInsertHint"></p></section>`;
+diff --git a/zminutes-ui.css b/zminutes-ui.css
+index 739bdb8..34147d4 100644
+--- a/zminutes-ui.css
++++ b/zminutes-ui.css
+@@ -466,3 +466,25 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
+ #pnConflicts pre { white-space:pre-wrap; max-height:240px; overflow:auto; }
+ #pnSave { color:#6b6780; font-size:12px; }
+ @media(max-width:700px) { .personal-workspace {grid-template-columns:minmax(0,1fr)} .personal-list {position:static} #personalView:not(.personal-open) .personal-detail {display:none} #personalView.personal-open .personal-list {display:none} .personal-detail {padding:14px} .personal-tools {top:64px} }
++
++/* Personal Notes: compact layout */
++#personalView .pn-head { display:flex; align-items:center; gap:8px; margin:0 0 6px; }
++#personalView .pn-head #pnTitle { flex:1; min-width:0; margin:0; padding-left:0; border-color:transparent; }
++#personalView .pn-head #pnTitle:focus { padding-left:12px; border-color:#ddd6f3; }
++#personalView #pnBack { display:none; }
++#personalView .pn-head .mini-menu > summary { min-height:40px; min-width:40px; padding:0 12px; }
++#personalView .mini-menu-list button:not(.primary):not(.personal-item) { width:100%; justify-content:flex-start; text-align:left; background:transparent; min-height:40px; }
++#personalView .mini-menu-list button:not(.primary):not(.personal-item):hover { background:#f1edff; }
++#personalView .pn-meta { display:flex; align-items:center; gap:12px; margin:0 0 8px; }
++#personalView .pn-meta #pnLabels { flex:1; min-height:36px; padding:6px 10px; font-size:13px; }
++#personalView .pn-meta #pnSave { margin:0; white-space:nowrap; }
++#personalView .personal-tools { gap:4px; margin:0 0 10px; padding:6px 0; }
++#personalView .personal-tools button, #personalView .personal-tools label { min-width:38px; min-height:38px; padding:4px 10px; display:inline-grid; place-items:center; font-weight:700; }
++#personalView .pn-filters { display:grid; grid-template-columns:112px minmax(0,1fr); gap:8px; }
++#personalView .pn-preview { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
++#personalView .pn-card-meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
++#personalView .pn-card-meta time { color:#8a85a0; }
++#personalView .pn-card-meta i { font-style:normal; font-size:11px; padding:1px 8px; border-radius:999px; background:#eeeaff; color:#514398; }
++#personalView .pn-empty { text-align:center; padding:72px 20px; color:#6b6780; }
++#personalView .pn-empty h2 { margin:0 0 6px; color:#2b2745; }
++@media (max-width:700px) { #personalView #pnBack { display:inline-flex; flex:0 0 100%; justify-content:flex-start; } #personalView .pn-head { flex-wrap:wrap; } }

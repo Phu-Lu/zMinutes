@@ -466,3 +466,25 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
 #pnConflicts pre { white-space:pre-wrap; max-height:240px; overflow:auto; }
 #pnSave { color:#6b6780; font-size:12px; }
 @media(max-width:700px) { .personal-workspace {grid-template-columns:minmax(0,1fr)} .personal-list {position:static} #personalView:not(.personal-open) .personal-detail {display:none} #personalView.personal-open .personal-list {display:none} .personal-detail {padding:14px} .personal-tools {top:64px} }
+
+/* Personal Notes: compact layout */
+#personalView .pn-head { display:flex; align-items:center; gap:8px; margin:0 0 6px; }
+#personalView .pn-head #pnTitle { flex:1; min-width:0; margin:0; padding-left:0; border-color:transparent; }
+#personalView .pn-head #pnTitle:focus { padding-left:12px; border-color:#ddd6f3; }
+#personalView #pnBack { display:none; }
+#personalView .pn-head .mini-menu > summary { min-height:40px; min-width:40px; padding:0 12px; }
+#personalView .mini-menu-list button:not(.primary):not(.personal-item) { width:100%; justify-content:flex-start; text-align:left; background:transparent; min-height:40px; }
+#personalView .mini-menu-list button:not(.primary):not(.personal-item):hover { background:#f1edff; }
+#personalView .pn-meta { display:flex; align-items:center; gap:12px; margin:0 0 8px; }
+#personalView .pn-meta #pnLabels { flex:1; min-height:36px; padding:6px 10px; font-size:13px; }
+#personalView .pn-meta #pnSave { margin:0; white-space:nowrap; }
+#personalView .personal-tools { gap:4px; margin:0 0 10px; padding:6px 0; }
+#personalView .personal-tools button, #personalView .personal-tools label { min-width:38px; min-height:38px; padding:4px 10px; display:inline-grid; place-items:center; font-weight:700; }
+#personalView .pn-filters { display:grid; grid-template-columns:112px minmax(0,1fr); gap:8px; }
+#personalView .pn-preview { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+#personalView .pn-card-meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+#personalView .pn-card-meta time { color:#8a85a0; }
+#personalView .pn-card-meta i { font-style:normal; font-size:11px; padding:1px 8px; border-radius:999px; background:#eeeaff; color:#514398; }
+#personalView .pn-empty { text-align:center; padding:72px 20px; color:#6b6780; }
+#personalView .pn-empty h2 { margin:0 0 6px; color:#2b2745; }
+@media (max-width:700px) { #personalView #pnBack { display:inline-flex; flex:0 0 100%; justify-content:flex-start; } #personalView .pn-head { flex-wrap:wrap; } }

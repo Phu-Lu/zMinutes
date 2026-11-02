@@ -196,15 +196,18 @@ const server = http.createServer((req, res) => {
         !(await ZMinutesPersonalStore.all())[0].value.recordings[0].audioId,
     );
     assert.match(await editor.innerText(), /Voice note transcript/);
+    await page.locator("#pnTrash").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#pnTrash").click();
     await page.waitForFunction(
       () => document.getElementById("pnTrash").textContent === "Restore",
     );
+    await page.locator("#pnTrash").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#pnTrash").click();
     await page.waitForFunction(
       () => document.getElementById("pnTrash").textContent === "Move to Trash",
     );
     const downloaded = page.waitForEvent("download");
+    await page.locator("#pnWord").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#pnWord").click();
     const word = await downloaded;
     const bytes = fs.readFileSync(await word.path());

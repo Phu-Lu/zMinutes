@@ -9,9 +9,14 @@
   const view = document.createElement("section");
   view.id = "personalView";
   view.className = "hidden";
+  const emptyDetail =
+    '<div class="pn-empty"><h2>Pick a note</h2><p>Select a note on the left, or start a new one.</p><button id="pnEmptyNew" class="primary">+ New note</button></div>';
   view.innerHTML = `<div class="panel-intro"><h1>Notes</h1><p>Your personal notebook. Independent of meetings and projects.</p></div>
-  <div class="personal-workspace"><aside class="personal-list"><button id="pnNew" class="primary">+ New note</button><input id="pnSearch" aria-label="Search notes" placeholder="Search notes…"><select id="pnFilter" aria-label="Filter notes"><option>All</option><option>Pinned</option><option>Archived</option><option>Trash</option></select><input id="pnLabelFilter" aria-label="Filter by label" placeholder="Filter by label"><div id="pnList"></div></aside>
-  <section id="pnDetail" class="personal-detail"><p>Select a note or create one.</p></section></div>`;
+  <div class="personal-workspace"><aside class="personal-list"><button id="pnNew" class="primary">+ New note</button><input id="pnSearch" aria-label="Search notes" placeholder="Search notes…"><div class="pn-filters"><select id="pnFilter" aria-label="Filter notes"><option>All</option><option>Pinned</option><option>Archived</option><option>Trash</option></select><input id="pnLabelFilter" aria-label="Filter by label" placeholder="Label"></div><div id="pnList"></div></aside>
+  <section id="pnDetail" class="personal-detail">${emptyDetail}</section></div>`;
+  view.addEventListener("click", (ev) => {
+    if (ev.target.closest("#pnEmptyNew")) view.querySelector("#pnNew").click();
+  });
   document.querySelector("main.shell").append(view);
   let rows = [],
     current = null,
@@ -106,6 +111,12 @@
     renderList();
     return id;
   }
+  function noteDate(ms) {
+    const d = new Date(ms);
+    if (Number.isNaN(d.getTime())) return "";
+    const opts = d.getFullYear() === new Date().getFullYear() ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" };
+    return d.toLocaleDateString(undefined, opts);
+  }
   function renderList() {
     const notes = rows
       .filter((r) => r.value)
@@ -135,7 +146,7 @@
       notes
         .map(
           (n) =>
-            `<button class="personal-item ${current?.id === n.id ? "selected" : ""}" data-note="${e(n.id)}"><strong>${n.pinned ? "★ " : ""}${e(n.title || "Untitled note")}</strong><span>${e(n.note.slice(0, 100) || "Empty note")}</span><small>${e(n.labels.join(" · "))}</small></button>`,
+            `<button class="personal-item ${current?.id === n.id ? "selected" : ""}" data-note="${e(n.id)}"><strong>${n.pinned ? "★ " : ""}${e(n.title || "Untitled note")}</strong><span class="pn-preview">${e(n.note.replace(/\s+/g, " ").trim().slice(0, 140) || "Empty note")}</span><small class="pn-card-meta"><time>${e(noteDate(n.updated))}</time>${n.labels.filter(Boolean).map((l) => `<i>${e(l)}</i>`).join("")}</small></button>`,
         )
         .join("") || "<p>No notes here.</p>";
   }
@@ -148,7 +159,7 @@
         current = null;
         editor?.destroy();
         editor = null;
-        $("pnDetail").innerHTML = "<p>Select a note.</p>";
+        $("pnDetail").innerHTML = emptyDetail;
       } else if (JSON.stringify(row.heads) !== JSON.stringify(current.heads))
         await open(row.id);
     }
@@ -170,26 +181,25 @@
     review = null;
     view.classList.add("personal-open");
     $("pnDetail").innerHTML =
-      `<button id="pnBack" class="link-btn">← All notes</button><input id="pnTitle" aria-label="Note title" placeholder="Untitled note"><div class="personal-actions"><button id="pnPin"></button><button id="pnArchive"></button><button id="pnTrash"></button>${row.value.trashed ? '<button id="pnDelete">Delete forever</button>' : ""}</div><label>Labels<input id="pnLabels" placeholder="Personal, Ideas, …"></label><p id="pnSave" role="status">Saved on this device</p>
+      `<div class="pn-head"><button id="pnBack" class="link-btn">← All notes</button><input id="pnTitle" aria-label="Note title" placeholder="Untitled note"><button id="pnPin"></button><details class="mini-menu"><summary aria-label="More note actions" title="More note actions">⋯</summary><div class="mini-menu-list"><button id="pnArchive"></button><button id="pnTrash"></button>${row.value.trashed ? '<button id="pnDelete">Delete forever</button>' : ""}<button id="pnCopy">Copy text</button><button id="pnPdf">Save as PDF</button><button id="pnWord">Download Word</button></div></details></div><div class="pn-meta"><input id="pnLabels" aria-label="Labels" placeholder="Labels: Personal, Ideas, …"><span id="pnSave" role="status">Saved on this device</span></div>
       <div class="personal-tools" role="toolbar" aria-label="Note formatting">${[
-        ["bold", "Bold"],
-        ["italic", "Italic"],
-        ["underline", "Underline"],
-        ["strike", "Strike"],
-        ["bulletList", "Bullets"],
-        ["orderedList", "Numbered"],
-        ["taskList", "Checklist"],
-        ["undo", "Undo"],
-        ["redo", "Redo"],
+        ["bold", "B", "Bold"],
+        ["italic", "I", "Italic"],
+        ["underline", "U", "Underline"],
+        ["strike", "S", "Strikethrough"],
+        ["bulletList", "•", "Bullet list"],
+        ["orderedList", "1.", "Numbered list"],
+        ["taskList", "☑", "Checklist"],
+        ["undo", "↶", "Undo"],
+        ["redo", "↷", "Redo"],
       ]
         .map(
-          ([cmd, label]) =>
-            `<button data-pn-command="${cmd}" type="button">${label}</button>`,
+          ([cmd, glyph, label]) =>
+            `<button data-pn-command="${cmd}" type="button" title="${label}" aria-label="${label}">${glyph}</button>`,
         )
         .join(
           "",
-        )}<label class="secondary">Picture<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div><p id="pnStatus" role="status" hidden></p>
-      <div class="personal-actions"><button id="pnCopy">Copy text</button><button id="pnPdf">PDF</button><button id="pnWord">Word</button></div>
+        )}<label class="secondary" title="Insert picture" aria-label="Insert picture">🖼<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div><p id="pnStatus" role="status" hidden></p>
       <details><summary>Pictures</summary><div id="pnPhotos"></div></details>
       <section class="personal-audio"><h2>Audio notes</h2><div class="personal-actions"><button id="pnRecord" class="primary">Record</button><span id="pnTimer">00:00</span></div><label><input id="pnConsent" type="checkbox"> Allow cloud transcription for this note</label><p>Audio stays on this device. Transcribe sends audio to your selected provider.</p><div id="pnRecordings"></div><details><summary>Interrupted recordings</summary><div id="pnRecovery"></div></details></section>
       <section id="pnReview" hidden><h2>Review transcript</h2><progress id="pnProgress" value="0" max="1"></progress><button id="pnCancel">Cancel transcription</button><textarea id="pnTranscript" aria-label="Review transcript"></textarea><div class="personal-actions"><button id="pnInsert">Insert into note</button><button id="pnAppend">Append to note</button></div><p id="pnInsertHint"></p></section>`;
