@@ -1,0 +1,98 @@
+diff --git a/index.html b/index.html
+index 60a39cb..510b83b 100644
+--- a/index.html
++++ b/index.html
+@@ -151,7 +151,7 @@
+       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button><button id="scanLegacyChangesBtn" class="secondary">Review older-app changes</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
+       <details id="recordingRecoveryDetails" class="settings-card settings-disclosure"><summary>Interrupted recordings <span id="recordingRecoveryCount" class="badge">0</span></summary><p>Recover audio saved on this device when recording was interrupted. This does not restore deleted files.</p><div id="recoveryList"></div></details>
+       <details id="syncConflictsDetails" class="settings-card settings-disclosure"><summary>Sync conflicts <span id="conflictCount" class="badge">0</span></summary><p>Both versions are kept until you choose which to use.</p><div id="conflictList"></div></details>
+-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 49</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
++      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 50</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+       </div></div>
+     </section>
+   </main>
+@@ -166,7 +166,7 @@
+   <script src="zminutes-editor.bundle.js?v=49"></script>
+   <script src="zminutes-rich-notes.js?v=49"></script>
+   <script src="zminutes-capture.js?v=44"></script>
+-  <script src="zminutes-audio.js?v=44"></script>
++  <script src="zminutes-audio.js?v=50"></script>
+   <script src="zminutes-intelligence.js?v=39"></script>
+   <script src="zminutes-live.js?v=39"></script>
+   <script src="zminutes-exports.js?v=46"></script>
+diff --git a/sw.js b/sw.js
+index 7045564..f4b975f 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,4 +1,4 @@
+-const CACHE = "zminutes-v49";
++const CACHE = "zminutes-v50";
+ const FILES = [
+   "./index.html",
+   "./zminutes-tokens.css?v=39",
+@@ -14,7 +14,7 @@ const FILES = [
+   "./zminutes-editor.bundle.js?v=49",
+   "./zminutes-rich-notes.js?v=49",
+   "./zminutes-capture.js?v=44",
+-  "./zminutes-audio.js?v=44",
++  "./zminutes-audio.js?v=50",
+   "./zminutes-intelligence.js?v=39",
+   "./zminutes-live.js?v=39",
+   "./zminutes-exports.js?v=46",
+diff --git a/zminutes-audio.js b/zminutes-audio.js
+index 34f45e6..0ac4a65 100644
+--- a/zminutes-audio.js
++++ b/zminutes-audio.js
+@@ -145,9 +145,24 @@
+     displayOpening?.then((d) => { if (r.canceled) d.getTracks().forEach((t) => t.stop()); }).catch(() => {});
+     A.recording = true;
+     $("recordBtn").innerHTML = "× <span>Cancel</span>";
+-    message("Connecting to microphone…");
+-    let stream, engine, active, mic, display, extra = [];
++    message(wantMeeting ? "Opening screen picker…" : "Connecting to microphone…");
++    let stream, engine, active, mic, display, warning = "", extra = [];
+     try {
++      // Show the screen/tab picker first, with no timeout, so a slow choice cannot trip the microphone timeout.
++      if (displayOpening) {
++        message("Choose the meeting tab or screen, and tick Share audio…");
++        display = await Promise.race([displayOpening, cancel]);
++        if (r.canceled) {
++          display.getTracks().forEach((t) => t.stop());
++          throw new Error("Recording canceled");
++        }
++        if (!display.getAudioTracks().length) {
++          display.getTracks().forEach((t) => t.stop());
++          display = null;
++          warning = "No meeting audio was shared (tick “Share audio” in the picker). Recording the microphone only.";
++        } else extra.push(...display.getTracks());
++      }
++      message("Connecting to microphone…");
+       const opening = navigator.mediaDevices
+         .getUserMedia({ audio: true })
+         .then((s) => {
+@@ -166,14 +181,8 @@
+         cancel,
+       ]);
+       mic = stream;
+-      extra = [...mic.getTracks()];
+-      if (displayOpening) {
+-        message("Choose the meeting tab or screen and tick Share audio…");
+-        display = await Promise.race([displayOpening, cancel]);
+-        extra.push(...display.getTracks());
+-        if (r.canceled) throw new Error("Recording canceled");
+-        if (!display.getAudioTracks().length)
+-          throw new Error("No meeting audio was shared. Choose a tab or Entire screen and tick “Share audio”, then record again.");
++      extra.push(...mic.getTracks());
++      if (display) {
+         const mix = context.createMediaStreamDestination();
+         context.createMediaStreamSource(mic).connect(mix);
+         context.createMediaStreamSource(new MediaStream(display.getAudioTracks())).connect(mix);
+@@ -224,7 +233,7 @@
+       $("recordingBanner").hidden = false;
+       $("recordingBannerText").textContent =
+         "Recording: " + (m.title || "Untitled meeting");
+-      message("Recording · " + engine.engine);
++      message("Recording · " + engine.engine + (warning ? " · " + warning : ""), !!warning);
+       navigator.wakeLock
+         ?.request("screen")
+         .then((x) => (wake = x))

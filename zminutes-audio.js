@@ -145,9 +145,24 @@
     displayOpening?.then((d) => { if (r.canceled) d.getTracks().forEach((t) => t.stop()); }).catch(() => {});
     A.recording = true;
     $("recordBtn").innerHTML = "× <span>Cancel</span>";
-    message("Connecting to microphone…");
-    let stream, engine, active, mic, display, extra = [];
+    message(wantMeeting ? "Opening screen picker…" : "Connecting to microphone…");
+    let stream, engine, active, mic, display, warning = "", extra = [];
     try {
+      // Show the screen/tab picker first, with no timeout, so a slow choice cannot trip the microphone timeout.
+      if (displayOpening) {
+        message("Choose the meeting tab or screen, and tick Share audio…");
+        display = await Promise.race([displayOpening, cancel]);
+        if (r.canceled) {
+          display.getTracks().forEach((t) => t.stop());
+          throw new Error("Recording canceled");
+        }
+        if (!display.getAudioTracks().length) {
+          display.getTracks().forEach((t) => t.stop());
+          display = null;
+          warning = "No meeting audio was shared (tick “Share audio” in the picker). Recording the microphone only.";
+        } else extra.push(...display.getTracks());
+      }
+      message("Connecting to microphone…");
       const opening = navigator.mediaDevices
         .getUserMedia({ audio: true })
         .then((s) => {
@@ -166,14 +181,8 @@
         cancel,
       ]);
       mic = stream;
-      extra = [...mic.getTracks()];
-      if (displayOpening) {
-        message("Choose the meeting tab or screen and tick Share audio…");
-        display = await Promise.race([displayOpening, cancel]);
-        extra.push(...display.getTracks());
-        if (r.canceled) throw new Error("Recording canceled");
-        if (!display.getAudioTracks().length)
-          throw new Error("No meeting audio was shared. Choose a tab or Entire screen and tick “Share audio”, then record again.");
+      extra.push(...mic.getTracks());
+      if (display) {
         const mix = context.createMediaStreamDestination();
         context.createMediaStreamSource(mic).connect(mix);
         context.createMediaStreamSource(new MediaStream(display.getAudioTracks())).connect(mix);
@@ -224,7 +233,7 @@
       $("recordingBanner").hidden = false;
       $("recordingBannerText").textContent =
         "Recording: " + (m.title || "Untitled meeting");
-      message("Recording · " + engine.engine);
+      message("Recording · " + engine.engine + (warning ? " · " + warning : ""), !!warning);
       navigator.wakeLock
         ?.request("screen")
         .then((x) => (wake = x))
