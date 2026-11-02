@@ -1,0 +1,68 @@
+diff --git a/index.html b/index.html
+index ec7b300..1508bdf 100644
+--- a/index.html
++++ b/index.html
+@@ -160,7 +160,7 @@
+   <template id="meetingTemplate"><article class="meeting-card"><button class="card-main"><span class="meeting-date"></span><span class="meeting-info"><strong></strong><small></small></span><span class="arrow">→</span></button><button class="delete-btn" title="Xóa">×</button></article></template>
+   <script src="zminutes-model.js?v=39"></script>
+   <script src="zminutes-repository.js?v=39"></script>
+-  <script src="zminutes-app.js?v=44"></script>
++  <script src="zminutes-app.js?v=46"></script>
+   <script src="zminutes-feedback.js?v=39"></script>
+   <script src="zminutes-views.js?v=41"></script>
+   <script src="zminutes-editor.bundle.js?v=39"></script>
+diff --git a/sw.js b/sw.js
+index 9480ddb..f095902 100644
+--- a/sw.js
++++ b/sw.js
+@@ -8,7 +8,7 @@ const FILES = [
+   "./zminutes-ui.css?v=42",
+   "./zminutes-model.js?v=39",
+   "./zminutes-repository.js?v=39",
+-  "./zminutes-app.js?v=44",
++  "./zminutes-app.js?v=46",
+   "./zminutes-feedback.js?v=39",
+   "./zminutes-views.js?v=41",
+   "./zminutes-editor.bundle.js?v=39",
+diff --git a/zminutes-app.js b/zminutes-app.js
+index 1d200bd..0e53af0 100644
+--- a/zminutes-app.js
++++ b/zminutes-app.js
+@@ -237,6 +237,7 @@
+       "B",
+       "EM",
+       "BR",
++      "HR",
+       "A",
+     ]);
+     const walk = (n) =>
+@@ -274,7 +275,11 @@
+     const plain = (block) => {
+       const html = [];
+       let list = "";
+-      const prepared = block.replace(/([^\s])\s*(?=\*\*[^*\r\n]{2,100}:\*\*)/g, "$1\n");
++      // Split run-on "text **Label:**" onto its own line, but never detach a list marker ("* **Label:**").
++      const prepared = block.replace(/([^\s])\s*(?=\*\*[^*\r\n]{2,100}:\*\*)/g, (match, char, offset, str) => {
++        const prefix = str.slice(str.lastIndexOf("\n", offset) + 1, offset + 1);
++        return /^\s*(?:[-*+•]|\d+[.)])$/.test(prefix) ? match : char + "\n";
++      });
+       const closeList = () => {
+         if (list) html.push(`</${list}>`);
+         list = "";
+@@ -282,6 +287,7 @@
+       for (const line of prepared.split(/\r?\n/)) {
+         const trimmed = line.trim();
+         if (!trimmed) { closeList(); continue; }
++        if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) { closeList(); html.push("<hr>"); continue; }
+         const heading = trimmed.match(/^#{1,6}\s+(.+)$/) ||
+           trimmed.match(/^(Overview|Decisions|Action items|Open questions|Transcript (?:&|and) translation insights|Meeting details|Thông tin cuộc họp|Tóm tắt|Quyết định|Việc cần làm|Câu hỏi còn mở)\s*:\s*$/i) ||
+           trimmed.match(/^\*\*(Overview|Decisions|Action items|Open questions|Transcript (?:&|and) translation insights|Meeting details|Thông tin cuộc họp|Tóm tắt|Quyết định|Việc cần làm|Câu hỏi còn mở):?\*\*\s*$/i);
+@@ -322,7 +328,7 @@
+       if (node.nodeType === Node.TEXT_NODE) return plain(node.textContent || "");
+       if (node.nodeType !== Node.ELEMENT_NODE) return "";
+       if (node.tagName === "P" && node.children.length === 0 &&
+-          /\*\*|(?:^|\n)\s*(?:#{1,6}\s+|[-*+•]\s+|\d+[.)]\s+)/.test(node.textContent))
++          /\*\*|-{3,}|(?:^|\n)\s*(?:#{1,6}\s+|[-*+•]\s+|\d+[.)]\s+)/.test(node.textContent))
+         return plain(node.textContent);
+       formatInlineNodes(node);
+       return node.outerHTML;
