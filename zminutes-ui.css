@@ -488,3 +488,10 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
 #personalView .pn-empty { text-align:center; padding:72px 20px; color:#6b6780; }
 #personalView .pn-empty h2 { margin:0 0 6px; color:#2b2745; }
 @media (max-width:700px) { #personalView #pnBack { display:inline-flex; flex:0 0 100%; justify-content:flex-start; } #personalView .pn-head { flex-wrap:wrap; } }
+
+#personalView .pn-audiobar { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:0 0 8px; padding:8px 12px; border:1px solid #e4dff4; border-radius:12px; background:#faf9ff; }
+#personalView .pn-audiobar #pnRecord { min-height:38px; }
+#personalView .pn-audiobar #pnTimer { font-variant-numeric:tabular-nums; color:#6b6780; }
+#personalView .pn-audiobar label { display:flex; align-items:center; gap:6px; margin-left:auto; }
+#personalView .pn-note { margin:0 0 8px; color:#6b6780; font-size:13px; }
+#personalView #pnReview { margin-top:16px; padding:16px; border:1px solid #cfc6f7; border-radius:14px; background:#faf9ff; }

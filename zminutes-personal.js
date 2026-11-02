@@ -182,6 +182,7 @@
     view.classList.add("personal-open");
     $("pnDetail").innerHTML =
       `<div class="pn-head"><button id="pnBack" class="link-btn">← All notes</button><input id="pnTitle" aria-label="Note title" placeholder="Untitled note"><button id="pnPin"></button><details class="mini-menu"><summary aria-label="More note actions" title="More note actions">⋯</summary><div class="mini-menu-list"><button id="pnArchive"></button><button id="pnTrash"></button>${row.value.trashed ? '<button id="pnDelete">Delete forever</button>' : ""}<button id="pnCopy">Copy text</button><button id="pnPdf">Save as PDF</button><button id="pnWord">Download Word</button></div></details></div><div class="pn-meta"><input id="pnLabels" aria-label="Labels" placeholder="Labels: Personal, Ideas, …"><span id="pnSave" role="status">Saved on this device</span></div>
+      <div class="pn-audiobar"><button id="pnRecord" class="primary">Record</button><span id="pnTimer">00:00</span><label title="After you stop recording, sends the audio to your selected AI provider and shows the transcript for review"><input id="pnConsent" type="checkbox"> Transcribe automatically (cloud)</label></div><p id="pnStatus" role="status" hidden></p>
       <div class="personal-tools" role="toolbar" aria-label="Note formatting">${[
         ["bold", "B", "Bold"],
         ["italic", "I", "Italic"],
@@ -199,9 +200,9 @@
         )
         .join(
           "",
-        )}<label class="secondary" title="Insert picture" aria-label="Insert picture">🖼<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div><p id="pnStatus" role="status" hidden></p>
+        )}<label class="secondary" title="Insert picture" aria-label="Insert picture">🖼<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div>
       <details><summary>Pictures</summary><div id="pnPhotos"></div></details>
-      <section class="personal-audio"><h2>Audio notes</h2><div class="personal-actions"><button id="pnRecord" class="primary">Record</button><span id="pnTimer">00:00</span></div><label><input id="pnConsent" type="checkbox"> Allow cloud transcription for this note</label><p>Audio stays on this device. Transcribe sends audio to your selected provider.</p><div id="pnRecordings"></div><details><summary>Interrupted recordings</summary><div id="pnRecovery"></div></details></section>
+      <section class="personal-audio"><h2>Recordings</h2><p class="pn-note">Audio stays on this device. Transcribing sends it to your selected provider.</p><div id="pnRecordings"></div><details><summary>Interrupted recordings</summary><div id="pnRecovery"></div></details></section>
       <section id="pnReview" hidden><h2>Review transcript</h2><progress id="pnProgress" value="0" max="1"></progress><button id="pnCancel">Cancel transcription</button><textarea id="pnTranscript" aria-label="Review transcript"></textarea><div class="personal-actions"><button id="pnInsert">Insert into note</button><button id="pnAppend">Append to note</button></div><p id="pnInsertHint"></p></section>`;
     const n = row.value;
     $("pnTitle").value = n.title;
@@ -451,6 +452,7 @@
   async function record() {
     if (capture) {
       const c = capture;
+      let autoId = null;
       try {
         await c.engine.stop();
         await checkpointTail;
@@ -463,6 +465,7 @@
           ZMinutesCapture.wav(chunks.map((x) => x.bytes)),
         );
         status("Recording saved.");
+        autoId = c.session.id;
         A.feedback.resolve("personal-audio");
       } catch (err) {
         A.notice("Recording needs recovery: " + err.message, true, {
@@ -478,6 +481,10 @@
         clearInterval(recordTimer);
         $("pnRecord").textContent = "Record";
         await renderMedia();
+      }
+      if (autoId && current?.value && !current.value.trashed && current.value.cloudAudioAllowed) {
+        const saved = current.value.recordings.find((x) => x.id === autoId);
+        if (saved) run(() => transcribe(saved));
       }
       return;
     }
@@ -563,6 +570,7 @@
       inserted: r.inserted,
     };
     $("pnReview").hidden = false;
+    $("pnReview").scrollIntoView?.({ block: "nearest", behavior: "smooth" });
     $("pnTranscript").value = review.text;
     $("pnCancel").hidden = !job;
     $("pnInsert").disabled = $("pnAppend").disabled = !!r.inserted || !!job;

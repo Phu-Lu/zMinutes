@@ -1,0 +1,165 @@
+diff --git a/index.html b/index.html
+index 8d49f5d..295d3ee 100644
+--- a/index.html
++++ b/index.html
+@@ -11,7 +11,7 @@
+   <link rel="stylesheet" href="styles.css?v=39" />
+   <link rel="stylesheet" href="zminutes-v2.css?v=46" />
+   <link rel="stylesheet" href="zminutes-layout.css?v=39" />
+-  <link rel="stylesheet" href="zminutes-ui.css?v=47" />
++  <link rel="stylesheet" href="zminutes-ui.css?v=48" />
+   <title>zMinutes</title>
+ </head>
+ <body>
+@@ -151,7 +151,7 @@
+       <section class="settings-card"><h2>Recover missing data</h2><p>Before syncing again, update both devices to this build. Recovery adds missing items without replacing existing ones.</p><div class="settings-actions"><button id="scanLocalHistoryBtn" class="secondary">Scan this device</button><button id="scanDriveHistoryBtn" class="secondary">Scan Drive versions</button><button id="scanLegacyChangesBtn" class="secondary">Review older-app changes</button></div><p id="recoveryStatus" role="status"></p><div id="dataRecoveryList"></div></section>
+       <details id="recordingRecoveryDetails" class="settings-card settings-disclosure"><summary>Interrupted recordings <span id="recordingRecoveryCount" class="badge">0</span></summary><p>Recover audio saved on this device when recording was interrupted. This does not restore deleted files.</p><div id="recoveryList"></div></details>
+       <details id="syncConflictsDetails" class="settings-card settings-disclosure"><summary>Sync conflicts <span id="conflictCount" class="badge">0</span></summary><p>Both versions are kept until you choose which to use.</p><div id="conflictList"></div></details>
+-      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 47</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
++      <section class="settings-card"><h2>About zMinutes</h2><p>Version 2.0 · build 48</p><p id="updateStatus" role="status">Ready for offline use after the first complete installation.</p><button id="updateAppBtn" class="secondary">Check for updates</button></section>
+       </div></div>
+     </section>
+   </main>
+@@ -174,7 +174,7 @@
+   <script src="zminutes-recovery.js?v=39"></script>
+   <script src="zminutes-reminders.js?v=39"></script>
+   <script src="zminutes-personal-store.js?v=39"></script>
+-  <script src="zminutes-personal.js?v=47"></script>
++  <script src="zminutes-personal.js?v=48"></script>
+   <script src="zminutes-personal-export.js?v=39"></script>
+   <script src="zminutes-pwa.js?v=39"></script>
+ </body>
+diff --git a/sw.js b/sw.js
+index 1730141..6ccd3a3 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,11 +1,11 @@
+-const CACHE = "zminutes-v47";
++const CACHE = "zminutes-v48";
+ const FILES = [
+   "./index.html",
+   "./zminutes-tokens.css?v=39",
+   "./zminutes-layout.css?v=39",
+   "./styles.css?v=39",
+   "./zminutes-v2.css?v=46",
+-  "./zminutes-ui.css?v=47",
++  "./zminutes-ui.css?v=48",
+   "./zminutes-model.js?v=39",
+   "./zminutes-repository.js?v=39",
+   "./zminutes-app.js?v=46",
+@@ -23,7 +23,7 @@ const FILES = [
+   "./zminutes-reminders.js?v=39",
+   "./zminutes-pwa.js?v=39",
+   "./zminutes-personal-store.js?v=39",
+-  "./zminutes-personal.js?v=47",
++  "./zminutes-personal.js?v=48",
+   "./zminutes-personal-export.js?v=39",
+   "./manifest.webmanifest?v=39",
+   "./zminutes-icon.svg",
+diff --git a/tests/personal.browser.cjs b/tests/personal.browser.cjs
+index 334aa8d..e2e8b6d 100644
+--- a/tests/personal.browser.cjs
++++ b/tests/personal.browser.cjs
+@@ -87,6 +87,7 @@ const server = http.createServer((req, res) => {
+         (await ZMinutesPersonalStore.all())[0].value.photos.length === 1,
+     );
+     await page.evaluate(() => ZM.flush());
++    await editor.locator("img[data-photo-id]").first().waitFor();
+     assert.equal(await editor.locator("img[data-photo-id]").count(), 1);
+     await page.getByText("Pictures", { exact: true }).click();
+     await page.locator("[data-pn-remove-photo]").click();
+@@ -196,6 +197,20 @@ const server = http.createServer((req, res) => {
+         !(await ZMinutesPersonalStore.all())[0].value.recordings[0].audioId,
+     );
+     assert.match(await editor.innerText(), /Voice note transcript/);
++    // Consent is on: stopping a recording transcribes it automatically and opens the review panel.
++    await page.unroute("https://api.openai.com/v1/audio/transcriptions");
++    await page.route("https://api.openai.com/v1/audio/transcriptions", (route) =>
++      route.fulfill({ json: { text: "Auto transcript ready." } }),
++    );
++    await page.locator("#pnRecord").click();
++    await page.waitForFunction(() => document.getElementById("pnRecord").textContent === "Stop");
++    await page.waitForTimeout(600);
++    await page.locator("#pnRecord").click();
++    await page.waitForFunction(
++      () => !ZM.aiBusy && document.getElementById("pnTranscript").value.includes("Auto transcript ready."),
++    );
++    assert.equal(await page.locator("#pnReview").isVisible(), true);
++    assert.equal(await page.locator("#pnInsert").isDisabled(), false);
+     await page.locator("#pnTrash").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
+     await page.locator("#pnTrash").click();
+     await page.waitForFunction(
+diff --git a/zminutes-personal.js b/zminutes-personal.js
+index b2b3f1b..9bc9ba9 100644
+--- a/zminutes-personal.js
++++ b/zminutes-personal.js
+@@ -182,6 +182,7 @@
+     view.classList.add("personal-open");
+     $("pnDetail").innerHTML =
+       `<div class="pn-head"><button id="pnBack" class="link-btn">← All notes</button><input id="pnTitle" aria-label="Note title" placeholder="Untitled note"><button id="pnPin"></button><details class="mini-menu"><summary aria-label="More note actions" title="More note actions">⋯</summary><div class="mini-menu-list"><button id="pnArchive"></button><button id="pnTrash"></button>${row.value.trashed ? '<button id="pnDelete">Delete forever</button>' : ""}<button id="pnCopy">Copy text</button><button id="pnPdf">Save as PDF</button><button id="pnWord">Download Word</button></div></details></div><div class="pn-meta"><input id="pnLabels" aria-label="Labels" placeholder="Labels: Personal, Ideas, …"><span id="pnSave" role="status">Saved on this device</span></div>
++      <div class="pn-audiobar"><button id="pnRecord" class="primary">Record</button><span id="pnTimer">00:00</span><label title="After you stop recording, sends the audio to your selected AI provider and shows the transcript for review"><input id="pnConsent" type="checkbox"> Transcribe automatically (cloud)</label></div><p id="pnStatus" role="status" hidden></p>
+       <div class="personal-tools" role="toolbar" aria-label="Note formatting">${[
+         ["bold", "B", "Bold"],
+         ["italic", "I", "Italic"],
+@@ -199,9 +200,9 @@
+         )
+         .join(
+           "",
+-        )}<label class="secondary" title="Insert picture" aria-label="Insert picture">🖼<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div><p id="pnStatus" role="status" hidden></p>
++        )}<label class="secondary" title="Insert picture" aria-label="Insert picture">🖼<input id="pnImage" type="file" accept="image/*" hidden></label></div><div id="pnEditor"></div>
+       <details><summary>Pictures</summary><div id="pnPhotos"></div></details>
+-      <section class="personal-audio"><h2>Audio notes</h2><div class="personal-actions"><button id="pnRecord" class="primary">Record</button><span id="pnTimer">00:00</span></div><label><input id="pnConsent" type="checkbox"> Allow cloud transcription for this note</label><p>Audio stays on this device. Transcribe sends audio to your selected provider.</p><div id="pnRecordings"></div><details><summary>Interrupted recordings</summary><div id="pnRecovery"></div></details></section>
++      <section class="personal-audio"><h2>Recordings</h2><p class="pn-note">Audio stays on this device. Transcribing sends it to your selected provider.</p><div id="pnRecordings"></div><details><summary>Interrupted recordings</summary><div id="pnRecovery"></div></details></section>
+       <section id="pnReview" hidden><h2>Review transcript</h2><progress id="pnProgress" value="0" max="1"></progress><button id="pnCancel">Cancel transcription</button><textarea id="pnTranscript" aria-label="Review transcript"></textarea><div class="personal-actions"><button id="pnInsert">Insert into note</button><button id="pnAppend">Append to note</button></div><p id="pnInsertHint"></p></section>`;
+     const n = row.value;
+     $("pnTitle").value = n.title;
+@@ -451,6 +452,7 @@
+   async function record() {
+     if (capture) {
+       const c = capture;
++      let autoId = null;
+       try {
+         await c.engine.stop();
+         await checkpointTail;
+@@ -463,6 +465,7 @@
+           ZMinutesCapture.wav(chunks.map((x) => x.bytes)),
+         );
+         status("Recording saved.");
++        autoId = c.session.id;
+         A.feedback.resolve("personal-audio");
+       } catch (err) {
+         A.notice("Recording needs recovery: " + err.message, true, {
+@@ -479,6 +482,10 @@
+         $("pnRecord").textContent = "Record";
+         await renderMedia();
+       }
++      if (autoId && current?.value && !current.value.trashed && current.value.cloudAudioAllowed) {
++        const saved = current.value.recordings.find((x) => x.id === autoId);
++        if (saved) run(() => transcribe(saved));
++      }
+       return;
+     }
+     if (A.recording || A.aiBusy || job || current.value.trashed)
+@@ -563,6 +570,7 @@
+       inserted: r.inserted,
+     };
+     $("pnReview").hidden = false;
++    $("pnReview").scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+     $("pnTranscript").value = review.text;
+     $("pnCancel").hidden = !job;
+     $("pnInsert").disabled = $("pnAppend").disabled = !!r.inserted || !!job;
+diff --git a/zminutes-ui.css b/zminutes-ui.css
+index 34147d4..1248837 100644
+--- a/zminutes-ui.css
++++ b/zminutes-ui.css
+@@ -488,3 +488,10 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
+ #personalView .pn-empty { text-align:center; padding:72px 20px; color:#6b6780; }
+ #personalView .pn-empty h2 { margin:0 0 6px; color:#2b2745; }
+ @media (max-width:700px) { #personalView #pnBack { display:inline-flex; flex:0 0 100%; justify-content:flex-start; } #personalView .pn-head { flex-wrap:wrap; } }
++
++#personalView .pn-audiobar { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:0 0 8px; padding:8px 12px; border:1px solid #e4dff4; border-radius:12px; background:#faf9ff; }
++#personalView .pn-audiobar #pnRecord { min-height:38px; }
++#personalView .pn-audiobar #pnTimer { font-variant-numeric:tabular-nums; color:#6b6780; }
++#personalView .pn-audiobar label { display:flex; align-items:center; gap:6px; margin-left:auto; }
++#personalView .pn-note { margin:0 0 8px; color:#6b6780; font-size:13px; }
++#personalView #pnReview { margin-top:16px; padding:16px; border:1px solid #cfc6f7; border-radius:14px; background:#faf9ff; }

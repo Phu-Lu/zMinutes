@@ -87,6 +87,7 @@ const server = http.createServer((req, res) => {
         (await ZMinutesPersonalStore.all())[0].value.photos.length === 1,
     );
     await page.evaluate(() => ZM.flush());
+    await editor.locator("img[data-photo-id]").first().waitFor();
     assert.equal(await editor.locator("img[data-photo-id]").count(), 1);
     await page.getByText("Pictures", { exact: true }).click();
     await page.locator("[data-pn-remove-photo]").click();
@@ -196,6 +197,20 @@ const server = http.createServer((req, res) => {
         !(await ZMinutesPersonalStore.all())[0].value.recordings[0].audioId,
     );
     assert.match(await editor.innerText(), /Voice note transcript/);
+    // Consent is on: stopping a recording transcribes it automatically and opens the review panel.
+    await page.unroute("https://api.openai.com/v1/audio/transcriptions");
+    await page.route("https://api.openai.com/v1/audio/transcriptions", (route) =>
+      route.fulfill({ json: { text: "Auto transcript ready." } }),
+    );
+    await page.locator("#pnRecord").click();
+    await page.waitForFunction(() => document.getElementById("pnRecord").textContent === "Stop");
+    await page.waitForTimeout(600);
+    await page.locator("#pnRecord").click();
+    await page.waitForFunction(
+      () => !ZM.aiBusy && document.getElementById("pnTranscript").value.includes("Auto transcript ready."),
+    );
+    assert.equal(await page.locator("#pnReview").isVisible(), true);
+    assert.equal(await page.locator("#pnInsert").isDisabled(), false);
     await page.locator("#pnTrash").evaluate((el) => { const d = el.closest("details"); if (d) d.open = true; });
     await page.locator("#pnTrash").click();
     await page.waitForFunction(
