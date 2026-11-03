@@ -1,7 +1,7 @@
 /* Provider-neutral, bounded live draft queue. Audio capture/storage never waits on AI. */
 (() => {
   const A = ZM, $ = A.$;
-  const limit = 30 * 16000 * 2;
+  const limit = 20 * 16000 * 2;
   let current = null;
   const status = (s, message, terminal = false, error = false) => {
     if (current !== s) return;
@@ -39,7 +39,20 @@
         throw new Error("Cloud transcription permission was removed.");
       s.done++;
       if (text.trim()) {
-        s.text.push(text.trim());
+        const original = text.trim();
+        s.text.push(original);
+        // Optional live translation of this chunk. A translation problem never stops the transcript.
+        let translated = "";
+        if ($("liveTranslateEnabled").checked && A.ai.translateLive) {
+          try {
+            translated = await A.ai.translateLive(s.meetingId, original, s.controller.signal);
+            s.translateError = "";
+          } catch (error) {
+            if (s.failed || s.controller.signal.aborted) return;
+            s.translateError = error.message;
+          }
+        }
+        s.pairs.push({ original, translated });
         await A.flush();
         if (s.failed || s.controller.signal.aborted) return;
         const meeting = A.data.meetings.find((m) => m.id === s.meetingId);
@@ -51,7 +64,15 @@
         await A.updateMeeting(s.meetingId, { transcriptSegments: old
           ? meeting.transcriptSegments.map((item) => item.id === old.id ? segment : item)
           : [...meeting.transcriptSegments, segment] });
-        if (current === s) $("liveDraftText").textContent = segment.text;
+        if (current === s) {
+          const translating = s.pairs.some((pair) => pair.translated);
+          $("liveDraftText").textContent = translating || s.translateError
+            ? "[Live draft — review for accuracy]\n" +
+              s.pairs.map((pair) => pair.translated ? pair.original + "\n→ " + pair.translated : pair.original).join("\n\n") +
+              (s.translateError ? "\n\n(Translation unavailable: " + s.translateError + ")" : "")
+            : segment.text;
+          if (translating) A.ai.setLiveTranslation?.(s.meetingId, s.pairs.filter((pair) => pair.translated).map((pair) => pair.translated));
+        }
       }
       status(s, `Live draft · ${s.done} chunks processed and saved · listening…`);
     }).catch((error) => stop(s, `Live draft stopped: ${error.message}`))
@@ -60,9 +81,9 @@
   function start(session, config) {
     if (current && !current.finished) throw new Error("Wait for the previous Live draft to finish.");
     const s = { ...session, config, segmentId: crypto.randomUUID(), buffers: [], bytes: 0,
-      pending: 0, done: 0, text: [], tail: Promise.resolve(), controller: new AbortController(), failed: false };
+      pending: 0, done: 0, text: [], pairs: [], tail: Promise.resolve(), controller: new AbortController(), failed: false };
     current = s;
-    $("liveDraftText").textContent = "First text appears after about 30 seconds of audio plus provider processing time.";
+    $("liveDraftText").textContent = "First text appears after about 20 seconds of audio plus provider processing time.";
     $("stopLiveBtn").hidden = false;
     $("dismissLiveBtn").hidden = true;
     status(s, `Live draft · listening · ${config.p} / ${config.model}`);

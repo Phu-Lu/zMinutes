@@ -333,7 +333,7 @@
     $("meetingCloudAudioEnabled").checked = m.cloudAudioAllowed;
     $("liveCloudHelpBtn").hidden = m.cloudAudioAllowed;
     $("liveCloudHint").textContent = m.cloudAudioAllowed
-      ? "Optional: sends audio every 30 seconds using your transcription model and key. May increase API costs. Off for each new recording."
+      ? "Optional: sends audio every 20 seconds using your transcription model and key. May increase API costs. Off for each new recording. Tick “Translate live” in the live panel to translate each chunk into the language chosen under Meeting transcript → To."
       : "Live draft needs cloud transcription permission for this meeting. Use the button above to review and enable it.";
     $("solutionGroundingInput").checked = m.solutionGrounding;
     $("transcriptCombined").textContent =

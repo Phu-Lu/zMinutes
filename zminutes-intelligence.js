@@ -880,5 +880,23 @@
       await recap(id, true);
     });
   $("cancelAiBtn").onclick = () => job?.abort();
-  A.ai = { recap, solutions, transcribe, quick, pcmSegment, transcriptionConfig, transcribePart };
+  // Live translation of one finished Live draft chunk; independent of the AI job panel so it never blocks it.
+  async function translateLive(meetingId, snippet, signal) {
+    const language = requireTranslationLanguage();
+    const c = structuredClone(read());
+    if (c.provider === "quick") throw new Error("choose Gemini, OpenAI, or local Ollama in Settings");
+    const m = A.data.meetings.find((item) => item.id === meetingId);
+    if (!m) throw new Error("Meeting not found");
+    const prompt = `Translate the following meeting speech into ${language}. Detect the source language automatically. Return ONLY the translation text, with no commentary, labels, or quotation marks. Keep names, numbers, and technical terms accurate. If the text is already in ${language}, return it unchanged.\n\n${snippet}`;
+    const out = (await text(m, c, signal, prompt)).trim();
+    if (!out) throw new Error("empty translation");
+    return out;
+  }
+  // Mirror the live translation into the existing Translation panel (copy / Add to Notes).
+  function setLiveTranslation(meetingId, parts) {
+    if (A.meetingId !== meetingId || !parts.length) return;
+    A.translation = { meetingId, source: transcriptText(), language: translationLanguage(), text: parts.join("\n\n"), detectedLanguages: [] };
+    A.showTranslation();
+  }
+  A.ai = { recap, solutions, transcribe, quick, pcmSegment, transcriptionConfig, transcribePart, translateLive, setLiveTranslation };
 })();
