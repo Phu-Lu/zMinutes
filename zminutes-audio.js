@@ -136,7 +136,7 @@
           systemAudio: "include",
         })
       : null;
-    const context = new Context(),
+    let context = new Context(),
       resume = context.resume();
     resume.catch(() => {});
     const r = { canceled: false },
@@ -146,10 +146,11 @@
     A.recording = true;
     $("recordBtn").innerHTML = "× <span>Cancel</span>";
     message(wantMeeting ? "Opening screen picker…" : "Connecting to microphone…");
-    let stream, engine, active, mic, display, warning = "", extra = [];
+    let stream, engine, active, mic, display, warning = "", stage = "starting", extra = [];
     try {
       // Show the screen/tab picker first, with no timeout, so a slow choice cannot trip the microphone timeout.
       if (displayOpening) {
+        stage = "screen picker";
         message("Choose the meeting tab or screen, and tick Share audio…");
         display = await Promise.race([displayOpening, cancel]);
         if (r.canceled) {
@@ -162,6 +163,7 @@
           warning = "No meeting audio was shared (tick “Share audio” in the picker). Recording the microphone only.";
         } else extra.push(...display.getTracks());
       }
+      stage = "microphone";
       message("Connecting to microphone…");
       const opening = navigator.mediaDevices
         .getUserMedia({ audio: true })
@@ -172,22 +174,27 @@
           }
           return s;
         });
-      stream = await Promise.race([
-        bounded(
-          opening,
-          15000,
-          "Microphone request timed out. Check the browser permission and system input.",
-        ),
-        cancel,
-      ]);
-      mic = stream;
-      extra.push(...mic.getTracks());
-      if (display) {
-        const mix = context.createMediaStreamDestination();
-        context.createMediaStreamSource(mic).connect(mix);
-        context.createMediaStreamSource(new MediaStream(display.getAudioTracks())).connect(mix);
-        stream = mix.stream;
+      try {
+        stream = await Promise.race([
+          bounded(
+            opening,
+            15000,
+            "Microphone request timed out. Check the browser permission and system input.",
+          ),
+          cancel,
+        ]);
+        mic = stream;
+        extra.push(...mic.getTracks());
+      } catch (micError) {
+        // A PC without a microphone can still record the meeting audio.
+        if (!display || r.canceled || micError.message === "Recording canceled") throw micError;
+        mic = null;
+        stream = null;
+        warning =
+          (micError.name === "NotFoundError" ? "No microphone found" : "Microphone unavailable (" + micError.message + ")") +
+          ". Recording the meeting audio only.";
       }
+      stage = "storage";
       message("Microphone connected. Starting capture…");
       const session = {
           id: crypto.randomUUID(),
@@ -207,23 +214,47 @@
         cancel,
       ]);
       if (r.canceled) throw new Error("Recording canceled");
-      engine = new Capture(stream, context, (bytes) => {
+      const onChunk = (bytes) => {
         active.buffers.push(bytes);
         if (liveConfig) {
           // Start only after capture produces audio; failed mic startup sends nothing.
           active.live ||= A.live.start(session, liveConfig);
           A.live.push(active.live, bytes);
         }
-      }, extra);
+      };
+      const startEngine = (c, ready) =>
+        Promise.race([
+          bounded(c.start(ready), 8500, "Audio startup timed out. Tap Record to retry."),
+          cancel,
+        ]);
+      stage = "audio engine";
+      message("Starting audio engine…");
+      const displayAudio = display ? new MediaStream(display.getAudioTracks()) : null;
+      engine = new Capture(mic || displayAudio, context, onChunk, extra, mic && displayAudio ? [displayAudio] : []);
       active.engine = engine;
-      await Promise.race([
-        bounded(
-          engine.start(resume),
-          8500,
-          "Audio startup timed out. Tap Record to retry.",
-        ),
-        cancel,
-      ]);
+      try {
+        await startEngine(engine, resume);
+      } catch (err) {
+        if (!display || !mic || r.canceled) throw err;
+        // Meeting audio could not start: fall back to the microphone so the recording is never lost.
+        warning = "Meeting audio could not start (" + err.message + "). Recording the microphone only.";
+        engine.abort();
+        display = null;
+        extra = [];
+        context = new Context();
+        const ready = context.resume();
+        ready.catch(() => {});
+        stage = "microphone (retry)";
+        mic = await Promise.race([
+          bounded(navigator.mediaDevices.getUserMedia({ audio: true }), 15000, "Microphone request timed out."),
+          cancel,
+        ]);
+        stream = mic;
+        extra.push(...mic.getTracks());
+        engine = new Capture(mic, context, onChunk, extra);
+        active.engine = engine;
+        await startEngine(engine, ready);
+      }
       if (r.canceled) throw new Error("Recording canceled");
       recording = active;
       request = null;
@@ -234,6 +265,7 @@
       $("recordingBannerText").textContent =
         "Recording: " + (m.title || "Untitled meeting");
       message("Recording · " + engine.engine + (warning ? " · " + warning : ""), !!warning);
+      if (warning) A.notice(warning, true);
       navigator.wakeLock
         ?.request("screen")
         .then((x) => (wake = x))
@@ -253,14 +285,14 @@
           finish();
         }
       }, 1000);
-      (display ? mic : stream).getAudioTracks().forEach((track) =>
+      (mic || displayAudio).getAudioTracks().forEach((track) =>
         track.addEventListener("ended", () => {
           if (recording === active) finish();
         }),
       );
       display?.getTracks().forEach((track) =>
         track.addEventListener("ended", () => {
-          if (recording === active) message("Meeting audio sharing stopped. Still recording the microphone only.", true);
+          if (recording === active && mic) message("Meeting audio sharing stopped. Still recording the microphone only.", true);
         }),
       );
     } catch (e) {
@@ -272,8 +304,12 @@
       if (context.state !== "closed") context.close().catch(() => {});
       request = null;
       reset();
+      if (wantMeeting && e.message !== "Recording canceled")
+        A.notice("Could not start recording at step “" + stage + "”: " + e.message, true);
       message(
-        e.name === "NotAllowedError"
+        e.name === "NotFoundError"
+          ? "No microphone found. Plug one in, or tick “Include meeting audio” to record the meeting without a mic."
+          : e.name === "NotAllowedError"
           ? (wantMeeting ? "Microphone or screen-share permission was cancelled or blocked." : "Microphone access was blocked by the browser or system.")
           : e.message,
         true,
