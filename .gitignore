@@ -2,3 +2,5 @@ node_modules/
 test-results/
 playwright-report/
 .codex-remote-attachments/
+*.patch
+build-46.patch fix-tests.patch meeting-audio-fix.patch notes-audio.patch notes-tasks.patch notes-ui.patch recap-format.patch recap-photos.patch
