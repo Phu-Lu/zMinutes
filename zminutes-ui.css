@@ -524,3 +524,14 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
 @keyframes zm-sync-pulse { 50% { opacity:.35; } }
 @media (prefers-reduced-motion:reduce) { .top-sync-status { animation:none !important; } }
 @media (max-width:700px) { #personalView .personal-tools { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; } #personalView .personal-tools::-webkit-scrollbar { display:none; } #personalView .personal-tools > * { flex:0 0 auto; } }
+/* ---- Personal Notes (desktop): one unified window, list and note separated by a divider ---- */
+@media (min-width:701px) {
+  #personalView .personal-workspace { gap:0; grid-template-columns:minmax(260px,300px) minmax(0,1fr); background:#fff; border:1px solid #e4dff4; border-radius:18px; overflow:hidden; box-shadow:0 1px 2px #2b274508; }
+  #personalView .personal-list { background:#faf9ff; border:0; border-right:1px solid #e4dff4; border-radius:0; padding:14px 10px 10px 14px; }
+  #personalView .personal-detail { background:#fff; border:0; border-radius:0; padding:22px 28px; }
+  #personalView #pnList { gap:0; padding-right:4px; }
+  #personalView .personal-item { background:transparent; border:0; border-bottom:1px solid #ece8f8; border-radius:0; padding:12px 12px 12px 14px; }
+  #personalView .personal-item:hover { background:#f3f0ff; }
+  #personalView .personal-item.selected { background:#e9e4ff; box-shadow:inset 3px 0 0 #7360f2; }
+  #personalView .personal-item:last-child { border-bottom:0; }
+}
