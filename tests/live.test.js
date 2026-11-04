@@ -16,7 +16,7 @@ function setup(transcribe) {
   const start = () => A.live.start({ id: "recording", meetingId: "meeting", title: "Test", created: 1 }, { p: "openai", model: "custom-audio-model", key: "test" });
   return { A, $, meeting, start };
 }
-const chunk = () => new Uint8Array(30 * 16000 * 2);
+const chunk = () => new Uint8Array(20 * 16000 * 2);
 test("live chunks run sequentially, keep selected model, and append one stable persisted segment", async () => {
   let active = 0, peak = 0, calls = 0;
   const { A, meeting, start } = setup(async (blob, config) => {
@@ -59,4 +59,29 @@ test("live queue is bounded and never grows indefinitely on a slow connection", 
   const s = start(); for (let i = 0; i < 20; i++) A.live.push(s, chunk());
   assert.ok(s.pending <= 3); assert.equal(s.bytes, 0);
   await A.live.finish(s); assert.equal(calls, 0); assert.equal(A.live.busy, false);
+});
+
+test("live translate adds a translation per chunk but keeps the saved transcript original-only", async () => {
+  const { A, $, meeting, start } = setup(async () => "xin chao moi nguoi");
+  $("liveTranslateEnabled").checked = true;
+  const seen = [];
+  A.ai.translateLive = async (meetingId, original) => { seen.push([meetingId, original]); return "hello everyone"; };
+  const shared = [];
+  A.ai.setLiveTranslation = (id, parts) => shared.push([id, [...parts]]);
+  const s = start(); A.live.push(s, chunk());
+  await A.live.finish(s);
+  assert.deepEqual(seen, [["meeting", "xin chao moi nguoi"]]);
+  assert.match($("liveDraftText").textContent, /xin chao moi nguoi\n→ hello everyone/);
+  assert.equal(meeting.transcriptSegments.at(-1).text.includes("hello everyone"), false);
+  assert.deepEqual(shared.at(-1), ["meeting", ["hello everyone"]]);
+});
+test("a translation failure does not stop the live transcript", async () => {
+  const { A, $, meeting, start } = setup(async () => "one chunk");
+  $("liveTranslateEnabled").checked = true;
+  A.ai.translateLive = async () => { throw new Error("quota exceeded"); };
+  const s = start(); A.live.push(s, chunk()); A.live.push(s, chunk());
+  await A.live.finish(s);
+  assert.equal(s.failed, false);
+  assert.equal(meeting.transcriptSegments.at(-1).text.includes("one chunk"), true);
+  assert.match($("liveDraftText").textContent, /Translation unavailable: quota exceeded/);
 });
