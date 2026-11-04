@@ -495,3 +495,32 @@ body .ghost.icon { font-size: 20px; padding: 8px; min-width: 44px; }
 #personalView .pn-audiobar label { display:flex; align-items:center; gap:6px; margin-left:auto; }
 #personalView .pn-note { margin:0 0 8px; color:#6b6780; font-size:13px; }
 #personalView #pnReview { margin-top:16px; padding:16px; border:1px solid #cfc6f7; border-radius:14px; background:#faf9ff; }
+
+/* ---- Personal Notes: two fixed panes, tidy list ---- */
+#personalView .pn-top { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+#personalView .pn-top #pnNew { min-height:44px; padding:0 16px; white-space:nowrap; }
+#personalView .personal-list, #personalView .personal-detail { scrollbar-width:thin; scrollbar-color:#d3cdf1 transparent; }
+#personalView .personal-item { transition:background .12s, border-color .12s; }
+#personalView .personal-item:hover { background:#f3f0ff; }
+#personalView .personal-item.selected { box-shadow: inset 3px 0 0 #7360f2; }
+#personalView .personal-item strong { line-height:1.3; }
+#personalView .personal-detail:has(.pn-empty) { display:grid; place-items:center; }
+#personalView .pn-empty { padding:24px 20px; }
+@media (min-width:701px) {
+  #personalView .personal-workspace { height:calc(100vh - 196px); min-height:460px; align-items:stretch; }
+  #personalView .personal-list { position:static; display:flex; flex-direction:column; gap:10px; padding:14px; overflow:hidden; }
+  #personalView #pnList { flex:1; min-height:0; overflow:auto; display:grid; gap:8px; align-content:start; padding-right:4px; }
+  #personalView .personal-detail { overflow:auto; }
+  #personalView .personal-tools { position:sticky; top:0; z-index:3; background:#fff; margin-top:0; }
+}
+/* Phone: the sync status becomes a small dot on the Sync button instead of a floating chip */
+@media (max-width:799px) {
+  .top-sync-status { top:5px; right:auto; left:27px; width:10px; height:10px; min-height:0; max-width:none; padding:0; border-radius:50%; font-size:0; line-height:0; overflow:hidden; box-shadow:0 0 0 2px #fff; background:#e69a2e; color:transparent; }
+  .top-sync-status[data-state="success"] { background:#2f9e5c; }
+  .top-sync-status[data-state="auth"], .top-sync-status[data-state="error"], .top-sync-status[data-state="setup"] { background:#d64545; }
+  .top-sync-status[data-state="offline"], .top-sync-status[data-state="paused"] { background:#8a93a3; }
+  .top-sync-status[data-state="uploading"], .top-sync-status[data-state="downloading"], .top-sync-status[data-state="verifying"] { background:#6c5ce7; animation:zm-sync-pulse 1s ease-in-out infinite; }
+}
+@keyframes zm-sync-pulse { 50% { opacity:.35; } }
+@media (prefers-reduced-motion:reduce) { .top-sync-status { animation:none !important; } }
+@media (max-width:700px) { #personalView .personal-tools { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; } #personalView .personal-tools::-webkit-scrollbar { display:none; } #personalView .personal-tools > * { flex:0 0 auto; } }

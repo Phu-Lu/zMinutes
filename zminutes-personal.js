@@ -12,7 +12,7 @@
   const emptyDetail =
     '<div class="pn-empty"><h2>Pick a note</h2><p>Select a note on the left, or start a new one.</p><button id="pnEmptyNew" class="primary">+ New note</button></div>';
   view.innerHTML = `<div class="panel-intro"><h1>Notes</h1><p>Your personal notebook. Independent of meetings and projects.</p></div>
-  <div class="personal-workspace"><aside class="personal-list"><button id="pnNew" class="primary">+ New note</button><input id="pnSearch" aria-label="Search notes" placeholder="Search notes…"><div class="pn-filters"><select id="pnFilter" aria-label="Filter notes"><option>All</option><option>Pinned</option><option>Archived</option><option>Trash</option></select><input id="pnLabelFilter" aria-label="Filter by label" placeholder="Label"></div><div id="pnList"></div></aside>
+  <div class="personal-workspace"><aside class="personal-list"><div class="pn-top"><input id="pnSearch" aria-label="Search notes" placeholder="Search notes…"><button id="pnNew" class="primary" aria-label="New note" title="New note">+ New</button></div><div class="pn-filters"><select id="pnFilter" aria-label="Filter notes"><option>All</option><option>Pinned</option><option>Archived</option><option>Trash</option></select><input id="pnLabelFilter" aria-label="Filter by label" placeholder="Label"></div><div id="pnList"></div></aside>
   <section id="pnDetail" class="personal-detail">${emptyDetail}</section></div>`;
   view.addEventListener("click", (ev) => {
     if (ev.target.closest("#pnEmptyNew")) view.querySelector("#pnNew").click();

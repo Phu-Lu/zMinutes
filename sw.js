@@ -1,11 +1,11 @@
-const CACHE = "zminutes-v53";
+const CACHE = "zminutes-v54";
 const FILES = [
   "./index.html",
   "./zminutes-tokens.css?v=39",
   "./zminutes-layout.css?v=39",
   "./styles.css?v=39",
   "./zminutes-v2.css?v=49",
-  "./zminutes-ui.css?v=48",
+  "./zminutes-ui.css?v=54",
   "./zminutes-model.js?v=39",
   "./zminutes-repository.js?v=39",
   "./zminutes-app.js?v=46",
@@ -23,7 +23,7 @@ const FILES = [
   "./zminutes-reminders.js?v=39",
   "./zminutes-pwa.js?v=39",
   "./zminutes-personal-store.js?v=39",
-  "./zminutes-personal.js?v=48",
+  "./zminutes-personal.js?v=54",
   "./zminutes-personal-export.js?v=39",
   "./manifest.webmanifest?v=39",
   "./zminutes-icon.svg",
